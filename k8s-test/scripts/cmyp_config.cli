@@ -1,0 +1,28 @@
+#!/usr/bin/expect
+
+set namespace [lindex $argv 0];
+set command [lindex $argv 1];
+
+spawn ssh -p 22 COMUser@eric-cm-yang-provider-external.$namespace.svc.cluster.local
+
+set timeout 5
+set prompt "COMUser@#"
+set promptc "COMUser@(config)#"
+
+expect "assword:"
+send -- "LdapUserPassword321\r"
+
+expect "$prompt"
+send -- "config\r"
+
+expect "$promptc"
+send -- "$command\r"
+
+expect "$promptc"
+send -- "commit\r"
+
+expect "$promptc"
+send -- "exit\r"
+
+expect "$prompt"
+send -- "exit\r"

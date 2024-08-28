@@ -1,0 +1,36 @@
+{{ if index .Values "tags" "eric-cbrs-dc-common" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eric-cbrs-version-configmap
+  labels:
+    ericsson.com/swim: "enabled"
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/name: "swim-map"
+  annotations:
+    {{ include "eric-cbrs-dc-package.config-annotations" . | nindent 4  }}
+    ericsson.com/commercial-name: "CBRS {{ .Values.ericCbrsVersionConfigmap.sprintNumber }}"
+    ericsson.com/description: "Citizen Broadband Radio Service"
+    ericsson.com/product-name: "CBRS"
+    ericsson.com/product-number: "{{ .Values.ericCbrsVersionConfigmap.productNumber }}"
+    ericsson.com/product-revision: "{{ .Values.ericCbrsVersionConfigmap.rState }}"
+    ericsson.com/product-set-version: "{{ .Values.ericCbrsVersionConfigmap.packageVersion }}"
+    ericsson.com/production-date: "{{ .Values.ericCbrsVersionConfigmap.productionDate }}"
+    {{ if .Values.ericCbrsVersionConfigmap.csarVersion }}
+    ericsson.com/semantic-version: "({{ .Values.ericCbrsVersionConfigmap.csarVersion }})"
+    {{  else }}
+    ericsson.com/semantic-version: "(p-{{ .Values.ericCbrsVersionConfigmap.packageVersion }})"
+    {{  end }}
+    ericsson.com/type: "Release"
+data:
+  .product-name: "CBRS"
+  {{- if .Values.ericCbrsVersionConfigmap.csarVersion }}
+  .cbrs-version: "CBRS {{ .Values.ericCbrsVersionConfigmap.sprintNumber }} (CSAR Version: {{ .Values.ericCbrsVersionConfigmap.csarVersion }}) (CBRS product number: {{ .Values.ericCbrsVersionConfigmap.productNumber }} {{ .Values.ericCbrsVersionConfigmap.rState }})"
+  .product-number: "{{ .Values.ericCbrsVersionConfigmap.productNumber }} {{ .Values.ericCbrsVersionConfigmap.rState }}"
+  {{- else }}
+  .cbrs-version: "CBRS {{ .Values.ericCbrsVersionConfigmap.sprintNumber }} (Package Version: {{ .Values.ericCbrsVersionConfigmap.packageVersion }}) (CBRS product number: {{ .Values.ericCbrsVersionConfigmap.productNumber }})"
+  .product-number: "{{ .Values.ericCbrsVersionConfigmap.productNumber }}"
+  {{- end }}
+  .production-date: "{{ .Values.ericCbrsVersionConfigmap.productionDate }}"
+  .package-version: "{{ .Values.ericCbrsVersionConfigmap.packageVersion }}"
+  {{- end }}

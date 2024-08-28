@@ -1,0 +1,5 @@
+{
+  "index_patterns": ["cbrs_*"],
+  "composed_of": ["cbrs_component_template"],
+  "priority": 5
+}

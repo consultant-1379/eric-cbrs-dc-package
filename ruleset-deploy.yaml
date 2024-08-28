@@ -1,0 +1,568 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Deployment Rules"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+properties:
+  - required-crds: eric-data-key-value-database-rd-crd|eric-sec-certm-crd|eric-sec-sip-tls-crd
+  - ignored-crds: eric-data-document-database-pg
+  - integration-values-base: k8s-test/target/integration-values-base.yaml
+  - integration-values-user: k8s-test/target/integration-values-user.yaml
+  - install-timeout: 30m
+  - crd-namespace: eric-crd-ns
+  - disaster-recovery-install: False
+  - image-secret: armdocker
+  - healthcheck-skip-fail: "false"
+
+env:
+  - PWD
+  - DOCKER_CONFIG (default=${env.PWD}/.docker)
+  - INTEGRATION_VALUES (default=)
+  - CERTM_CONFIG_CONTENT (default=)
+  - REDUCED_FOOTPRINT(default=false)
+
+var:
+  - namespace
+  - docker-flags-kube-config
+  - chart-version
+  - chart-url
+  - temp
+  - helm-extra-opts
+  - current-crd-version
+  - new-crd-version
+  - integration-values-env
+
+import:
+  init: ruleset-init.yaml
+  build: ruleset-build.yaml
+  test: ruleset-test.yaml
+  dev: ruleset-dev.yaml
+
+rules:
+  conditions:
+    - task: is-int-chart-version-empty
+      cmd: test "${env.INT_CHART_VERSION}" == ""
+    - task: is-co-deployed-enm
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd: helm list -A | grep eric-enm-pre-deploy-integration
+    - task: is-siptls-crd-install-upgrade-required
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "kubectl get crds -l app.kubernetes.io/name=eric-sec-sip-tls-crd -o jsonpath={.items[0].metadata.labels.'app\.kubernetes\.io\/version'} | sed "s/\_/./g"  | tee .bob/var.current-crd-version"
+        - bash -c "ls ${test.test-target-folder}/${var.chart-version}/ | grep -Po '(?<=eric-sec-sip-tls-crd-)[^;]+' | sed "s/\+/./g" | sed "s/\-/./g" | sed "s/\.tgz//g" | tee .bob/var.new-crd-version"
+        - test ${var.current-crd-version} = None || test ${var.current-crd-version} != $(echo -e "${var.current-crd-version}\n${var.new-crd-version}" | sort -V | tail -1)
+    - task: is-certm-crd-install-upgrade-required
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "kubectl get crds -l app.kubernetes.io/name=eric-sec-certm-crd -o jsonpath={.items[0].metadata.labels.'app\.kubernetes\.io\/version'} | sed "s/\_/./g"  | tee .bob/var.current-crd-version"
+        - bash -c "ls ${test.test-target-folder}/${var.chart-version}/ | grep -Po '(?<=eric-sec-certm-crd-)[^;]+' | sed "s/\+/./g" | sed "s/\-/./g" | sed "s/\.tgz//g" | tee .bob/var.new-crd-version"
+        - test ${var.current-crd-version} = None || test ${var.current-crd-version} != $(echo -e "${var.current-crd-version}\n${var.new-crd-version}" | sort -V | tail -1)
+    - task: is-key-value-db-crd-install-upgrade-required
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "kubectl get crds -l app.kubernetes.io/name=eric-data-key-value-database-rd-crd -o jsonpath={.items[0].metadata.labels.'app\.kubernetes\.io\/version'} | sed "s/\_/./g"  | tee .bob/var.current-crd-version"
+        - bash -c "ls ${test.test-target-folder}/${var.chart-version}/ | grep -Po '(?<=eric-data-key-value-database-rd-crd-)[^;]+' | sed "s/\+/./g" | sed "s/\-/./g" | sed "s/\.tgz//g" | tee .bob/var.new-crd-version"
+        - test ${var.current-crd-version} = None || test ${var.current-crd-version} != $(echo -e "${var.current-crd-version}\n${var.new-crd-version}" | sort -V | tail -1)
+    - task: is-upgrade
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-common
+    - task: is-syslog-in-certm-file
+      cmd:
+        - cat ${test.test-target-folder}/eric-sec-certm-deployment-configuration.json | grep log-syslog-client
+    - task: is-package-upgrade-required
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-common | awk '{ print $9}' | awk -F'eric-cbrs-dc-package-' '{ print $2}' | tee .bob/var.temp
+        - echo "CBRS_UG_SKIPPED=TRUE" > k8s-test/target/logs/printenv.log
+        - test ${var.chart-version} != ${var.temp} && echo "CBRS_UG_SKIPPED=FALSE" > k8s-test/target/logs/printenv.log
+    - task: is-disaster-recovery-install
+      cmd: test "${disaster-recovery-install}" == "True"
+    - task: is-reduced-footprint
+      cmd: test "${env.REDUCED_FOOTPRINT}" == "true"
+    - task: is-certm-config-content
+      cmd: test -n '${env.CERTM_CONFIG_CONTENT}'
+    - task: is-healthcheck-file-exists
+      cmd: test -f ${test.test-target-folder}/${var.chart-version}/k8shealthcheck/k8shealthcheck.py
+
+  create-namespace:
+    - task: create-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c 'kubectl get namespaces '${var.namespace}' || kubectl create namespace ${var.namespace} 2>&1 | tee ${test.test-logs-folder}/log-create-namespace.log'
+
+  create-secret-to-pull-images:
+    - task: setup-secrets
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - ${var.docker-flags-kube-config}
+        - "--volume ${env.DOCKER_CONFIG}:${env.DOCKER_CONFIG}"
+      cmd: kubectl create secret generic ${image-secret}
+        --from-file=.dockerconfigjson=${env.DOCKER_CONFIG}/config.json
+        --type=kubernetes.io/dockerconfigjson
+        --namespace ${var.namespace} || true
+
+  prepare-integration-values:
+    - rule: prepare-base-integration-values
+    - rule: prepare-user-integration-values
+    - rule: prepare-reduced-footprint-integration-values
+
+  prepare-base-integration-values:
+    - task: create-base-integration-values-from-source
+      cmd: cp ${test.test-source-folder}/integration-values-base.yaml ${integration-values-base}
+    - task: find-storage-class
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -c "(kubectl get storageclass|grep 'nfs' || kubectl get storageclass|grep 'cephfs' || kubectl get storageclass|grep 'file' || kubectl get storageclass|grep 'default') | awk '{print \$1}' | tee .bob/var.temp"
+    - task: prepare-base-integration-values-storage-class
+      cmd:
+        - sed -i 's/<storage-class-name>/${var.temp}/g' ${integration-values-base}
+    - task: find-ingress-ip
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -c "kubectl get svc cbrs-ingress-controller-nx-external -n ${var.namespace} | tail -1 | awk '{print \$4}'" | tee .bob/var.temp
+    - task: prepare-base-integration-values-load-balancer
+      cmd:
+        - sed -i 's/<ingress-ip>/${var.temp}/g' ${integration-values-base}
+    - task: prepare-base-integration-values-ingress-namespace
+      cmd:
+        - sed -i 's/<namespace>/${var.namespace}/g' ${integration-values-base}
+    - task: prepare-base-integration-values-syslog-upgrade
+      condition: conditions:is-upgrade
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "helm get values eric-cbrs-dc-common-${var.namespace} -n ${var.namespace} -o json | jq '.\"eric-ran-log-service\".\"eric-log-transformer\".egress.syslog.enabled'" | tee .bob/var.temp
+        - test "${var.temp}" == "true" || echo "false" > .bob/var.temp
+        - sed -i 's/<enable-rsyslog>/${var.temp}/g' ${integration-values-base}
+    - task: prepare-base-integration-values-enable-syslog
+      condition: NOT conditions:is-upgrade AND conditions:is-syslog-in-certm-file
+      cmd:
+        - sed -i 's/<enable-rsyslog>/true/g' ${integration-values-base}
+    - task: prepare-base-integration-values-disable-syslog
+      condition: NOT conditions:is-upgrade AND NOT conditions:is-syslog-in-certm-file
+      cmd:
+        - sed -i 's/<enable-rsyslog>/false/g' ${integration-values-base}
+    - task: print-base-integration-values
+      cmd:
+        - cat ${integration-values-base}
+
+  prepare-user-integration-values:
+    - task: create-user-integration-values-file
+      cmd:
+        - echo '${env.INTEGRATION_VALUES}' | tee ${integration-values-user}
+
+  prepare-reduced-footprint-integration-values:
+    - task: set-helm-extra-opts-default
+      cmd:
+        - echo -n ' ' | tee .bob/var.helm-extra-opts
+    - task: set-helm-extra-opts-for-reduced-footprint
+      condition: conditions:is-reduced-footprint
+      cmd:
+        - echo -n ' --post-renderer k8s-test/scripts/helm-minimize.sh' | tee .bob/var.helm-extra-opts
+    - task: print-helm-extra-opts
+      cmd:
+        - echo ${var.helm-extra-opts}
+
+  install-cbrs:
+    - rule: download-package
+    - rule: create-roles
+    - rule: install-upgrade-crds
+    - rule: create-init-secrets
+      condition: NOT (conditions:is-disaster-recovery-install)
+    - rule: install-upgrade-helm-charts
+    - rule: delete-init-secrets
+      condition: NOT (conditions:is-disaster-recovery-install)
+
+  download-package:
+    - task: download-chart
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - mkdir -p ${test.test-target-folder}/${var.chart-version}
+        - curl ${var.chart-url} -o ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+    - task: extract-crds
+      cmd:
+        - tar -tvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz | egrep "${required-crds}" | awk '{print $6}' | tr '\n' ' ' | tee .bob/var.temp
+        - tar --directory ${test.test-target-folder}/${var.chart-version} --strip=6 -xvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz ${var.temp}
+        - ls ${test.test-target-folder}/${var.chart-version}
+    - task: check-for-new-crds
+      cmd:
+        - tar -tf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz | grep eric-crd | egrep -v "${required-crds}|${ignored-crds}" | wc -l | tee .bob/var.temp
+        - test ${var.temp} -eq "0"
+    - task: extract-healthcheck
+      cmd:
+        - tar tvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz | grep k8shealthcheck | awk '{print $6}' | tr '\n' ' ' | tee .bob/var.temp
+        - tar --directory ${test.test-target-folder}/${var.chart-version} --strip=2 -xvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz ${var.temp}
+    - task: extract-cbrs-version-script
+      cmd:
+        - tar tvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz | grep version-info | awk '{print $6}' | tr '\n' ' ' | tee .bob/var.temp
+        - tar --directory ${test.test-target-folder}/${var.chart-version} --strip=2 -xvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz ${var.temp}
+    - task: extract-supporting-files
+      cmd:
+        - tar tvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz | grep supporting-files | awk '{print $6}' | tr '\n' ' ' | tee .bob/var.temp
+        - tar --directory ${test.test-target-folder}/${var.chart-version} --strip=1 -xvf ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz ${var.temp}
+
+  create-roles:
+    - rule: create-cluster-roles
+    - rule: create-ingress-class
+    - rule: create-cluster-role-bindings
+
+  create-cluster-roles:
+    - task: create-manifest
+      cmd:
+        - mkdir -p ${test.test-target-folder}
+        - bash -c "sed 's/<namespace>/${var.namespace}/g' ${test.test-target-folder}/${var.chart-version}/supporting-files/cbrs-ingress-controller-nx-cr.yaml | tee ${test.test-target-folder}/cbrs-ingress-controller-nx-cr.yaml"
+    - task: set-uniq-role-name
+      cmd:
+        - 'sh -c "sed -i ''s/name:.*/name: ${var.namespace}-ingress-controller-nx/g'' ${test.test-target-folder}/cbrs-ingress-controller-nx-cr.yaml"'
+    - task: apply-cluster-role
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl create -f ${test.test-target-folder}/cbrs-ingress-controller-nx-cr.yaml
+
+  create-ingress-class:
+    - task: create-uniq-ingress-class
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - 'sh -c "sed ''s/name:.*/name: ${var.namespace}-ingress-nginx/g'' ${test.test-target-folder}/${var.chart-version}/supporting-files/cbrs-ingress-controller-nx-ic.yaml > ${test.test-target-folder}/cbrs-ingress-controller-nx-ic.yaml"'
+        - 'sh -c "sed -i ''s|/name:.*|/name: ${var.namespace}-ingress-controller-nx|g'' ${test.test-target-folder}/cbrs-ingress-controller-nx-ic.yaml"'
+        - kubectl create -f ${test.test-target-folder}/cbrs-ingress-controller-nx-ic.yaml
+
+  create-cluster-role-bindings:
+    - task: create-manifest
+      cmd:
+        - bash -c "sed 's/<namespace>/${var.namespace}/g' ${test.test-target-folder}/${var.chart-version}/supporting-files/cbrs-ingress-controller-nx-crb.yaml > ${test.test-target-folder}/cbrs-ingress-controller-nx-crb.yaml"
+    - task: set-uniq-role-name
+      cmd:
+        - 'sh -c "sed -i ''s/name: cbrs-ingress-controller-nx$/name: ${var.namespace}-ingress-controller-nx/g'' ${test.test-target-folder}/cbrs-ingress-controller-nx-crb.yaml"'
+    - task: apply-cluster-role
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl create -f ${test.test-target-folder}/cbrs-ingress-controller-nx-crb.yaml
+    - task: create-ddc
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+       - bash -c "sed -e 's/<NAMESPACE>/${var.namespace}/g' -e 's/<ROLE_BINDING_NAME>/eric-oss-ddc-read-only-role-binding/g' -e 's/<SERVICE_ACCOUNT>/eric-oss-ddc/g' -e 's/<ROLE_NAME>/eric-oss-ddc-read-only/g' ${test.test-target-folder}/${var.chart-version}/supporting-files/cbrs-ddc-crb.yaml | tee ${test.test-target-folder}/cbrs-ddc-crb.yaml"
+       - kubectl create -f ${test.test-target-folder}/cbrs-ddc-crb.yaml -n ${var.namespace}
+
+  create-init-secrets:
+    - rule: delete-init-secrets
+    - task: create-init-secret-ldap
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- mkpasswd -m sha-512 'LdapUserPassword321' -S ljsf3k32l | tee .bob/var.temp
+        - kubectl create secret generic eric-ran-security-service-init-ldap-secret -n ${var.namespace} --from-literal=adminuser=Day0EmergencyUser --from-literal=adminpasswd=${var.temp}
+    - task: create-init-secret-day-0-user
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- mkpasswd -m sha-512 'LdapUserPassword321' -S ljsf3k32l | sed 's=/=\\/=g' | sed 's=\$=\\$=g' | tee .bob/var.temp
+        - bash -c "sed 's/\"\"/\"${var.temp}\"/g' ${test.test-target-folder}/${var.chart-version}/supporting-files/example-settings/MachineUser-configuration.json | tee ${test.test-target-folder}/MachineUser-configuration.json"
+        - kubectl create secret generic eric-sec-admin-user-management-day0-user -n ${var.namespace} --from-file=./${test.test-target-folder}/MachineUser-configuration.json
+    - task: create-default-certm-file
+      cmd:
+        - cp ./k8s-test/eric-sec-certm-deployment-configuration.json ${test.test-target-folder}/eric-sec-certm-deployment-configuration.json
+    - task: create-custom-certm-file
+      condition: conditions:is-certm-config-content
+      cmd:
+        - echo '${env.CERTM_CONFIG_CONTENT}' | tee ${test.test-target-folder}/eric-sec-certm-deployment-configuration.json
+    - task: create-auto-enroll-certm-file
+      condition: conditions:is-co-deployed-enm AND init.conditions:is-enm-enroll AND NOT conditions:is-certm-config-content
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - k8s-test/scripts/enroll_with_co-deployed-cenm.sh -n ${var.namespace} -o ${test.test-target-folder}/eric-sec-certm-deployment-configuration.json
+    - task: create-init-secret-certm
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl create secret generic eric-ran-security-service-init-certm-secret -n ${var.namespace} --from-file=${test.test-target-folder}/eric-sec-certm-deployment-configuration.json
+
+  install-upgrade-crds:
+    - task: create-crds-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "kubectl get namespaces '${crd-namespace}' || kubectl create namespace ${crd-namespace}"
+        - bash -c "kubectl get secret ${image-secret} --namespace=${var.namespace} -oyaml | grep -v '^\s*namespace:\s' | kubectl apply --namespace=${crd-namespace} -f - || true"
+    - task: install-siptls-crds
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      condition: conditions:is-siptls-crd-install-upgrade-required
+      cmd:
+        - bash -c 'helm upgrade
+          --install eric-sec-sip-tls-crd ${test.test-target-folder}/${var.chart-version}/eric-sec-sip-tls-crd-*.tgz
+          --set global.pullSecret=${image-secret}
+          --atomic
+          --debug
+          --namespace ${crd-namespace}'
+    - task: install-certm-crds
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      condition: conditions:is-certm-crd-install-upgrade-required
+      cmd:
+        - bash -c 'helm upgrade
+          --install eric-sec-certm-crd ${test.test-target-folder}/${var.chart-version}/eric-sec-certm-crd-*.tgz
+          --set global.pullSecret=${image-secret}
+          --atomic
+          --debug
+          --namespace ${crd-namespace}'
+    - task: install-key-value-db-crds
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      condition: (NOT conditions:is-co-deployed-enm) AND conditions:is-key-value-db-crd-install-upgrade-required
+      cmd:
+        - bash -c 'helm upgrade
+          --install eric-data-key-value-database-rd-crd ${test.test-target-folder}/${var.chart-version}/eric-data-key-value-database-rd-crd-*.tgz
+          --set global.pullSecret=${image-secret}
+          --atomic
+          --debug
+          --namespace ${crd-namespace}'
+
+  install-upgrade-helm-charts:
+    - rule: prepare-integration-values
+    - rule: dev.prepare-for-local-install
+    - task: install-dc-common
+      condition: NOT conditions:is-disaster-recovery-install
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -o pipefail -c 'helm upgrade --install eric-cbrs-dc-common-${var.namespace} ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+        --namespace ${var.namespace} --wait-for-jobs
+        --values ${integration-values-base}
+        --values ${var.integration-values-env}
+        --values ${integration-values-user}
+        --set tags.eric-cbrs-dc-common=true
+        ${var.helm-extra-opts}
+        --timeout ${install-timeout}
+        --wait
+        --debug 2>&1 | tee -a ${test.test-logs-folder}/log-eric-cbrs-dc-common-${var.namespace}-install.log'
+    - task: install-dc-common-disaster-recovery-scenario
+      condition: conditions:is-disaster-recovery-install
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -o pipefail -c 'helm upgrade --install eric-cbrs-dc-common-${var.namespace} ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+        --namespace ${var.namespace}
+        --values ${integration-values-base}
+        --values ${var.integration-values-env}
+        --values ${integration-values-user}
+        --set tags.eric-cbrs-dc-common=true
+        ${var.helm-extra-opts}
+        --timeout ${install-timeout}
+        --debug 2>&1 | tee -a ${test.test-logs-folder}/log-eric-cbrs-dc-common-${var.namespace}-install.log'
+    - rule: test.update-cert-expire-polling-interval
+    - rule: prepare-base-integration-values
+    - task: install-dc-shared
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -o pipefail -c 'helm upgrade --install eric-cbrs-dc-shared-${var.namespace} ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+        --namespace ${var.namespace} --wait-for-jobs
+        --values ${integration-values-base}
+        --values ${var.integration-values-env}
+        --values ${integration-values-user}
+        --set tags.eric-cbrs-dc-shared=true
+        ${var.helm-extra-opts}
+        --timeout ${install-timeout}
+        --wait
+        --debug 2>&1 | tee -a ${test.test-logs-folder}/log-eric-cbrs-dc-shared-${var.namespace}-install.log'
+    - task: install-dc-deployment-1
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -o pipefail -c 'helm upgrade --install eric-cbrs-dc-dep-1-${var.namespace} ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+        --namespace ${var.namespace} --wait-for-jobs
+        --values ${integration-values-base}
+        --values ${var.integration-values-env}
+        --values ${integration-values-user}
+        --set tags.eric-cbrs-dc-deployment-1=true
+        ${var.helm-extra-opts}
+        --timeout ${install-timeout}
+        --wait
+        --debug 2>&1 | tee -a ${test.test-logs-folder}/log-install-dc1.log'
+    - task: install-dc-deployment-2
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: bash -o pipefail -c 'helm upgrade --install eric-cbrs-dc-dep-2-${var.namespace} ${test.test-target-folder}/${var.chart-version}/eric-cbrs-dc-package-${var.chart-version}.tgz
+        --namespace ${var.namespace} --wait-for-jobs
+        --values ${integration-values-base}
+        --values ${var.integration-values-env}
+        --values ${integration-values-user}
+        --set tags.eric-cbrs-dc-deployment-2=true
+        ${var.helm-extra-opts}
+        --timeout ${install-timeout}
+        --wait
+        --debug 2>&1 | tee -a ${test.test-logs-folder}/log-install-dc2.log'
+
+  delete-init-secrets:
+    - task: delete-init-secrets
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete secret eric-ran-security-service-init-certm-secret -n ${var.namespace} --ignore-not-found
+        - kubectl delete secret eric-ran-security-service-init-ldap-secret -n ${var.namespace} --ignore-not-found
+        - kubectl delete secret eric-sec-admin-user-management-day0-user -n ${var.namespace} --ignore-not-found
+    - task: verify-deleted-secrets
+      cmd: |
+        for secret in eric-ran-security-service-init-certm-secret eric-ran-security-service-init-ldap-secret eric-sec-admin-user-management-day0-user; do \
+        kubectl get secret $secret -n ${var.namespace} &> /dev/null && \
+        echo "$secret still present" || echo "Secret $secret deleted successfully"; \
+        done
+
+
+  rollback-helm-charts:
+    - task: rollback-helm-charts
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-dep-2 | awk '{$3 = $3 -1; print$3 }' | tee .bob/var.temp
+        - helm rollback eric-cbrs-dc-dep-2-${var.namespace} ${var.temp} -n ${var.namespace}
+          --wait-for-jobs
+          --timeout ${install-timeout}
+          --wait
+          --debug
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-dep-1 | awk '{$3 = $3 -1; print$3 }' | tee .bob/var.temp
+        - helm rollback eric-cbrs-dc-dep-1-${var.namespace} ${var.temp} -n ${var.namespace}
+          --wait-for-jobs
+          --timeout ${install-timeout}
+          --wait
+          --debug
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-shared | awk '{$3 = $3 -1; print$3 }' | tee .bob/var.temp
+        - helm rollback eric-cbrs-dc-shared-${var.namespace} ${var.temp} -n ${var.namespace}
+          --wait-for-jobs
+          --timeout ${install-timeout}
+          --wait
+          --debug
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-common | awk '{$3 = $3 -1; print$3 }' | tee .bob/var.temp
+        - helm rollback eric-cbrs-dc-common-${var.namespace} ${var.temp} -n ${var.namespace}
+          --wait-for-jobs
+          --timeout ${install-timeout}
+          --wait
+          --debug
+
+  healthcheck:
+    - rule: download-package
+      condition: NOT conditions:is-healthcheck-file-exists
+    - task: healthcheck
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - sleep 200
+        - bash -c "python3 ${test.test-target-folder}/${var.chart-version}/k8shealthcheck/k8shealthcheck.py -n ${var.namespace} || ${healthcheck-skip-fail}"
+
+  uninstall-cbrs:
+    - rule: uninstall-helm-charts
+    - task: delete-backup-pvc
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl delete pvc backup-data-eric-ctrl-bro-0 -n ${var.namespace} --ignore-not-found
+    - rule: delete-created-roles
+    - rule: check-resources-present
+
+  uninstall-helm-charts:
+    - task: uninstall-helm-charts
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm uninstall eric-cbrs-dc-dep-2-${var.namespace} -n ${var.namespace} --ignore-not-found
+        - helm uninstall eric-cbrs-dc-dep-1-${var.namespace} -n ${var.namespace} --ignore-not-found
+        - helm uninstall eric-cbrs-dc-shared-${var.namespace} -n ${var.namespace} --ignore-not-found
+        - helm uninstall eric-cbrs-dc-common-${var.namespace} -n ${var.namespace} --ignore-not-found
+
+  delete-created-roles:
+    - task: delete-created-roles
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete clusterRole ${var.namespace}-ingress-controller-nx --ignore-not-found
+        - kubectl delete clusterRole eric-pm-server-${var.namespace} --ignore-not-found
+        - kubectl delete clusterRole eric-oss-ddc-read-only --ignore-not-found
+        - kubectl delete ingressClass ${var.namespace}-ingress-nginx --ignore-not-found
+        - kubectl delete clusterRoleBinding ${var.namespace}-ingress-controller-nx --ignore-not-found
+        - kubectl delete clusterRoleBinding eric-oss-ddc-read-only-role-binding --ignore-not-found
+        - kubectl delete clusterRoleBinding eric-pm-server-${var.namespace} --ignore-not-found
+        - kubectl delete clusterRoleBinding eric-sec-key-management-auth-${var.namespace} --ignore-not-found
+
+  delete-namespace:
+    - task: delete-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete namespace ${var.namespace} --ignore-not-found
+
+  delete-complete-eric-cbrs-search-engine-template-job:
+    - task: delete-eric-cbrs-search-engine-template-job
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete job eric-cbrs-search-engine-template-job -n ${var.namespace} --ignore-not-found
+
+  # remove below temporary workaround rule after CDL baseline is moved to 24.09 csar
+  pre-rollback-steps-for-replica3to1-dced:
+    - task: scale-down-eric-data-distributed-coordinator-ed
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - sleep 10
+        - kubectl exec -it eric-data-distributed-coordinator-ed-0 -c dced -n ${var.namespace} -- bash -c 'etcdctl member remove $(etcdctl member list | sort -Vk3 | tail -n 1 | cut -d, -f1 )'
+        - sleep 2
+        - kubectl scale statefulset.apps/eric-data-distributed-coordinator-ed -n ${var.namespace} --replicas=2
+        - sleep 100
+        - kubectl delete pvc data-eric-data-distributed-coordinator-ed-2  -n ${var.namespace}
+        - sleep 5
+        - kubectl exec -it eric-data-distributed-coordinator-ed-0 -c dced -n ${var.namespace} -- bash -c 'etcdctl member remove $(etcdctl member list | sort -Vk3 | tail -n 1 | cut -d, -f1 )'
+        - sleep 2
+        - kubectl scale statefulset.apps/eric-data-distributed-coordinator-ed -n ${var.namespace} --replicas=1
+        - sleep 100
+        - kubectl delete pvc data-eric-data-distributed-coordinator-ed-1 -n ${var.namespace}
+        - sleep 5
+        - kubectl exec eric-data-distributed-coordinator-ed-0 -c dced -n ${var.namespace} -- mkdir -p /data/snapshot
+        - kubectl exec eric-data-distributed-coordinator-ed-0 -c dced -n ${var.namespace} -- etcdctl snapshot save /data/snapshot/backup.db
+
+  # remove below temporary workaround rule after CDL baseline is moved to 24.09 csar
+  post-rollback-steps-for-replica3to1-dced:
+    - task: delete-eric-cbrs-search-engine-template-job
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - sleep 10
+        - kubectl scale statefulset.apps/eric-data-distributed-coordinator-ed --replicas=0 -n ${var.namespace}
+        - sleep 100
+        - kubectl scale statefulset.apps/eric-data-distributed-coordinator-ed --replicas=1 -n ${var.namespace}
+        - sleep 120
+        - kubectl exec -it eric-data-distributed-coordinator-ed-0 -c dced -n ${var.namespace} -- bash -c '
+          rm -rf /data/restore_data &&
+          sleep 2 &&
+          mkdir -p /data/member/snap &&
+          sleep 2 &&
+          /usr/local/bin/etcdctl snapshot restore /data/snapshot/backup.db --name eric-data-distributed-coordinator-ed-0 --initial-cluster eric-data-distributed-coordinator-ed-0=https://eric-data-distributed-coordinator-ed-0.eric-data-distributed-coordinator-ed-peer.cbrs.svc.cluster.local:2380 --initial-advertise-peer-urls https://eric-data-distributed-coordinator-ed-0.eric-data-distributed-coordinator-ed-peer.cbrs.svc.cluster.local:2380 --data-dir=/data/restore_data &&
+          sleep 2 &&
+          pkill --exact etcd &&
+          sleep 2 &&
+          rm -f /data/member/wal/*.wal &&
+          rm -f /data/member/snap/*snap &&
+          cp -Rf /data/restore_data/member /data &&
+          exit'
+        - sleep 2
+        - kubectl delete pod eric-data-distributed-coordinator-ed-0 -n ${var.namespace}
+        - sleep 120
+
+  check-resources-present:
+    - task: check-resources-present
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - k8s-test/scripts/check_resources.sh ${var.namespace}

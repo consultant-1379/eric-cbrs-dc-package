@@ -1,0 +1,23 @@
+dp_test_server:
+  image: armdocker.rnd.ericsson.se/proj_oss/domainproxy/domainproxy-testserver:stagingtest
+  name: test-server
+
+gauge_runner:
+  image: armdocker.rnd.ericsson.se/proj_oss/test/gauge-java-runner-1-5-1
+  name: gauge-runner
+
+sftp_server:
+  name: sftp-server
+  image: selidockerhub.lmera.ericsson.se/emberstack/sftp
+  tag: 5.1.5
+  pullPolicy: IfNotPresent
+  containerPort: 22
+
+sftp_server_service:
+  type: ClusterIP
+  port: 22
+
+rsyslog_test_server:
+  name: rsyslog-test-server
+  image: armdocker.rnd.ericsson.se/proj_oss/domainproxy/rsyslog-testserver:stagingtest
+  port: 514

@@ -1,0 +1,21 @@
+zapConfig:
+  baseUrl: "http://eric-cbrs-dc:8080/"
+  scanType: "full"
+  config_dir: "config/"
+  globalConfig:
+  endpoints:
+  - name: "UI_PRES_SERVER"
+    url: "enmapache.athtem.eei.ericsson.se"
+  - name: "DCM_SERVICES"
+    url: "domain-coordinator-manager-app/services"
+  - name: "DCM_TOP_OP"
+    url: "domain-coordinator-manager-app/services/v1/topology-operator"
+  report:
+    dir: "build/zap-scan"
+    format:
+      - html
+      - json
+      - md
+      - xml
+  properties:
+    zap_container_port: 4040

@@ -1,0 +1,4 @@
+documents: 
+  - name: eric_cbrs_dc_vulnerability_report
+    files: 
+      - ../build/Vulnerability_Report_2.0.md

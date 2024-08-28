@@ -1,0 +1,214 @@
+modelVersion: 2.0
+
+description: "CBRS Standalone Domain Proxy Service"
+
+import:
+  init: ruleset-init.yaml
+  build: ruleset-build.yaml
+  deploy: ruleset-deploy.yaml
+  test: ruleset-test.yaml
+  recovery: ruleset-recovery.yaml
+  dev: ruleset-dev.yaml
+  syslog: ruleset-syslog.yaml
+  analyze: ruleset-analyze.yaml
+
+default-rules:
+  - usage
+
+rules:
+  usage:
+    - task: print usage
+      cmd: |
+        << 'EOF'
+
+        MAIN RULES:
+
+         - init               : performs initial setup (clean work directories, create namespace and install testware)
+                                (used by the pipeline)
+         - install-baseline   : installs CBRS version -1 and runs healthcheck and tests
+                                 Depends on: init
+                                (used by the pipeline)
+         - install            : installs CBRS based on the version defined by environment variable INT_CHART_VERSION
+                                if not specified, builds the chart and installs it. Also runs healthcheck and tests
+                                 Depends on: init
+                                (used by the pipeline)
+         - upgrade            : upgrades CBRS based on the version defined by environment variable INT_CHART_VERSION
+                                if not specified, builds the chart and installs it. Also runs healthcheck and tests
+                                 Depends on: init, install
+                                (used by the pipeline)
+         - test               : execute the tests
+                                 Depends on: init, install-baseline/install/upgrade
+                                (used by the pipeline)
+         - uninstall          : uninstall CBRS from a namespace (does not remove namespace as it is needed for logs 
+                                collection in Post Actions stage)
+                                 Depends on: init, install-baseline/install/upgrade
+                                (used by the pipeline)
+         - report             : generate the Gauge report and fetch the logs
+                                 Depends on: init
+                                (used by the pipeline)
+         - clean              : delete test dependencies, created roles and namespace.
+                                (used by the pipeline)
+
+        MAIN PROPERTIES:
+
+         - namespace          : namespace on the test environment to apply the requested changes (install / update / uninstall ...)
+                                if not defined defaults to '<chart name>-<chart version>'
+
+        EOF
+
+  precodereview: build.precodereview
+  prepare: build.prepare
+  publish: build.publish
+  package-helm-chart: build.package-helm-chart
+  archiveArtifacts: build.archiveArtifacts
+  lint: build.lint
+  healthcheck: deploy.healthcheck
+  python-unit-test: test.python-unit-test
+
+  init:
+    - rule: clean-build
+    - rule: test.make-target
+    - rule: init.init-vars
+    - rule: init.capture-start-time
+
+  prepare-env:
+    - rule: clean
+    - rule: deploy.create-namespace
+    - rule: deploy.create-secret-to-pull-images
+    - rule: test.install-test-dependencies
+
+  install-version:
+    - rule: deploy.install-cbrs
+    - rule: healthcheck
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPostInstall"
+
+  install-baseline:
+    - rule: prepare-env
+    - rule: init.set-chart-baseline
+    - rule: install-version
+
+  install:
+    - rule: prepare-env
+    - rule: init.init-chart-version
+    - rule: install-version
+
+  upgrade:
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPreUpgrade"
+    - rule: init.init-chart-version
+    - rule: deploy.download-package
+      # remove below rule after completion of 24.07 sprint
+    - rule: deploy.delete-complete-eric-cbrs-search-engine-template-job
+    - rule: deploy.install-upgrade-crds
+    - rule: deploy.install-upgrade-helm-charts
+      condition: deploy.conditions:is-package-upgrade-required
+    - rule: healthcheck
+    - rule: test.test-cbrs-version
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPostUpgrade"
+
+  test:
+    - rule: recovery.execute-brocli-test
+    - rule: syslog.execute-syslog-test
+    - rule: test.execute-staging-test
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaMonitorStaging"
+    - rule: test.test-logs-present
+
+  sat:
+    - rule: test.execute-sat-test
+
+  integration:
+    - rule: test.execute-integration-test
+
+  rollback:
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPreRollback"
+    - rule: deploy.rollback-helm-charts
+    - rule: healthcheck
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPostRollback"
+
+  rollback-cdl:
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPreRollback"
+    # remove below temporary workaround rule after CDL baseline is moved to 24.09 csar
+    - rule: deploy.pre-rollback-steps-for-replica3to1-dced
+    - rule: deploy.rollback-helm-charts
+    # remove below temporary workaround rule after CDL baseline is moved to 24.09 csar
+    - rule: deploy.post-rollback-steps-for-replica3to1-dced
+    - rule: healthcheck
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPostRollback"
+
+  uninstall:
+    - rule: deploy.uninstall-cbrs
+
+  recovery:
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPreDisaster"
+    - rule: recovery.test-schedule-setup
+    - rule: backup
+    - rule: restore
+    - rule: recovery.test-schedule-restored
+    - rule: test.execute-standalone-test
+      properties:
+        - test-tag: "dcsaPostDisaster"
+    - rule: recovery.execute-brocli-test
+
+  backup:
+    - rule: test.install-test-dependencies
+    - rule: recovery.check-sftp-access
+    - rule: recovery.backup-data
+
+  restore:
+    - rule: recovery.check-sftp-access
+    - rule: recovery.find-sftp-backup-unseal-key
+    - rule: recovery.find-sftp-backup-data
+    - rule: recovery.find-sftp-backup-group-ids
+    - rule: deploy.delete-created-roles
+    - rule: deploy.delete-namespace
+    - rule: deploy.create-namespace
+    - rule: deploy.create-secret-to-pull-images
+    - rule: test.install-test-dependencies
+    - rule: deploy.install-cbrs
+      properties:
+        - disaster-recovery-install: "True"
+    - rule: recovery.restore-data
+    - rule: healthcheck
+      properties:
+        - healthcheck-skip-fail: "true"
+
+  report:
+    - rule: test.generate-gauge-report
+    - rule: collect-logs
+
+  collect-logs:
+    - rule: test.collect-k8s-logs
+    - rule: test.collect-adp-logs #intermittently causes job to abort
+    - rule: recovery.collect-backups
+    - rule: init.capture-end-time
+
+  analyze:
+    - rule: analyze.helm-chart-analyzer
+
+  clean:
+    - rule: test.uninstall-test-dependencies
+    - rule: deploy.delete-created-roles
+    - rule: deploy.delete-namespace
+
+  clean-build:
+    - task: clean-project
+      cmd: rm -rf ${test.test-target-folder}
+    - task: clean-bob
+      cmd: rm -rf .bob/*

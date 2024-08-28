@@ -1,0 +1,39 @@
+netconf:
+  ipRange: "0.0.0.0"
+  portRange: "6513"
+  tlsSecurityDefinition:
+    alias: "server-security"
+    keyPath: "/dp/mock-node-netconf-server.key"
+    certificatePath: "/dp/mock-node-netconf-server.cert"
+  trustedCertificate:
+    alias: "client-certificate"
+    certificatePath: "/dp/mock-node-netconf-trusted-ca.pem"
+
+nodes:
+  - name: "LTE40dg2ERBS${repeat}"
+    repeat: 1
+    latencyMillis: 300
+    dataTemplate: "netconf/ERBS18Q3"
+    cbsdSerials:
+      - TD3T428820${repeat}
+      - D827120515${repeat}
+
+reports:
+  - reportClass: com.ericsson.oss.services.domainproxy.test.server.testevent.reports.LoggerReport
+  - reportClass: com.ericsson.oss.services.domainproxy.test.server.testevent.reports.PrometheusReport
+    initParameters:
+      scrape_port: "9920"
+
+sasConfig:
+  httpPort: 8305
+  httpsPort: 8306
+  keystorePath: "/dp/mock-sas-rest-server.jks"
+  keystorePassword: "3ric550N"
+  keystoreType: "JKS"
+  trustStorePath: "/dp/mock-sas-rest-server-truststore.jks"
+  trustStorePassword: "3ric550N"
+  needClientAuth: true
+  cipherSuites: ["TLS_RSA_WITH_AES_128_GCM_SHA256", "TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]
+  disableRequestJournal: true
+  jettyAcceptorsThreads: 2
+  jettyContainerThreads: 20

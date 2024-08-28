@@ -1,0 +1,223 @@
+modelVersion: 2.0
+
+description: "CBRS VA_Standalone pipeline"
+
+# See image catalog: https://confluence.lmera.ericsson.se/display/ACD/ADP+CICD+Docker+Image+Catalog
+docker-images:
+  - adp-int-helm: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-int-helm-chart-auto:latest
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+  - adp-release-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:latest
+  - va-scan-kubebench: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubebench:latest  
+  - va-scan-kubesec: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubesec:latest  
+  - va-scan-kubeaudit: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubeaudit:latest
+  - va-scan-kubehunter: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubehunter:latest
+  - va-scan-kubesec: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/va-scan-kubesec:latest
+
+properties:
+  - git-repo-url: https://gerrit-gamma.gic.ericsson.se/OSS/ENM-Parent/SQ-Gate/com.ericsson.oss.services.domainproxy/eric-cbrs-dc-package
+  - git-branch: master
+  - chart-path: chart/eric-cbrs-dc-package
+  - helm-chart-repo-server-path: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc
+  - helm-repo-internal: ${helm-chart-repo-server-path}-ci-internal-helm
+  - helm-repo-drop: ${helm-chart-repo-server-path}-drop-helm
+  - helm-repo-release: ${helm-chart-repo-server-path}-released-helm
+  - images-file-to-scan: .bob/package.tar
+
+env:
+  - HOME
+  - PWD
+  - RELEASE (default=false)
+  - DOCKER_NETWORK (default=--network host)
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - SELI_USER
+  - CBRS_SSH
+  - SELI_PASSWORD
+  - SERO_USER
+  - SERO_PASSWORD
+  - INT_CHART_NAME (default=eric-cbrs-dc-package)
+  - INT_CHART_REPO (default=${helm-repo-drop})
+  - INT_CHART_VERSION (default=${var.chart-version})
+  - HELM_INSTALL_TIMEOUT (default=30m)
+  - HELM_SHARED_INSTALL_TIMEOUT (default=5m)
+  - HELM_DEP_INSTALL_TIMEOUT (default=15m)
+  - K8_NAMESPACE (default=cbrs)
+  - KUBECONFIG (default=${env.HOME}/.kube/config)
+  - SITE_VALUES (default=${site-values})
+  - STD_TIMEOUT (default=120)
+
+var:
+  - docker-flags-kube-config
+  - namespace
+  - chart-version
+  
+import:
+  build: ruleset-build.yaml
+  deploy: ruleset-deploy.yaml
+  test: ruleset-test.yaml
+  recovery: ruleset-recovery.yaml
+  baserules: ruleset2.0.yaml
+
+# Rules to execute
+rules:
+
+  init:
+    - rule: set-params-for-bob
+    - rule: clean
+    - rule: deploy.create-namespace
+
+  set-params-for-bob:
+    - rule: baserules.set-params-for-bob
+
+  install-baseline:
+    - rule: baserules.install-baseline
+
+  install:
+    - rule: baserules.install
+
+  uninstall:
+    - rule: deploy.uninstall-cbrs
+
+  clean:
+    - rule: baserules.clean
+
+#VA-Scans
+  generate-VA-report-V2:
+    - task: no-upload
+      docker-image: adp-release-auto
+      cmd: bash -c 'va-report
+           --set version=${var.version}
+           --config ${env.PWD}/config/va-report.config
+           --output ${env.PWD}/Vulnerability_Report_2.0.md
+           --md
+           --debug
+           --nmap-reports ${env.PWD}/nmap_reports/nmap_report/'; exit 0;
+    - task: upload
+      docker-image: adp-release-auto
+      docker-flags:
+        - --env VHUB_API_TOKEN
+      cmd: bash -c 'va-report
+           --set version=${var.version}
+           --config ${env.PWD}/config/va-report.config
+           --output ${env.PWD}/Vulnerability_Report_2.0.md
+           --md
+           --debug
+           --anchore-reports ${env.PWD}/build/anchore-reports
+           --trivy-reports ${env.PWD}/build/trivy-reports
+           --xray-report ${env.PWD}/build/xray-reports/xray_report.json
+           --raw-xray-report ${env.PWD}/build/xray-reports/raw_xray_report.json
+           --kubeaudit-reports ${env.PWD}/build/kubeaudit-report/${env.INT_CHART_NAME}/templates/deployment
+           --kubesec-reports ${env.PWD}/build/kubesec-reports
+           --upload-scan-results'; exit 0;
+
+  get-pods:
+    - task: get-pods
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env K8_NAMESPACE=${env.K8_NAMESPACE}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        - "--volume ${env.PWD}:${env.PWD}"
+      cmd: kubectl get pods -o name -n ${env.K8_NAMESPACE} --field-selector=status.phase=Running | sed -e 's#pod/##g' > .bob/var.pods
+
+  kubebench: #working on Cluster no need helm.
+    - task: kubebench-scan-test
+      docker-image: va-scan-kubebench
+      docker-flags:
+        - "--workdir /opt/kubebench/"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"   # Export the KUBECONFIG environment variable else it will look for kubeconfig file under home directory.
+        - "--env STD_TIMEOUT=${env.STD_TIMEOUT}"
+        - "--env K8_NAMESPACE=${env.K8_NAMESPACE}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        - "-v ${env.PWD}/config:/opt/kubebench/conf" #Place kube-bench config file
+        - "-v ${env.PWD}/build/kubebench-report/:/tmp/reports"
+      cmd: " "
+
+  kubeAudit: # Scanning helm charts
+    - task: get-chart
+      docker-image: adp-release-auto
+      cmd:
+        - curl ${env.INT_CHART_REPO}/${env.INT_CHART_NAME}/${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz -o ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz
+    - task: helm-template
+      docker-image: adp-release-auto
+      cmd:
+        - "helm template dc-common ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-common=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_INSTALL_TIMEOUT} --wait --output-dir=.bob/helm_src"
+        - "helm template dc-shared ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-shared=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_SHARED_INSTALL_TIMEOUT} --wait --output-dir=.bob/helm_src"
+        - "helm template dc-dep-1 ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-deployment-1=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_DEP_INSTALL_TIMEOUT} --wait --output-dir=.bob/helm_src"
+        - "helm template dc-dep-2 ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-deployment-2=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_DEP_INSTALL_TIMEOUT} --wait --output-dir=.bob/helm_src"
+    - task: kube-audit
+      docker-image: va-scan-kubeaudit
+      docker-flags:
+        - "--workdir /opt/va-scan-kubeaudit/"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "-v ${env.PWD}/config:/opt/va-scan-kubeaudit/conf"
+        - "-v ${env.PWD}/build/kube-audit-report/:/tmp/reports"
+        - "-v ${env.PWD}/.bob/helm_src:/tmp/src"
+      cmd: " "
+
+  kubehunter: # Scanning on Cluster
+    - task: kube-hunter
+      docker-image: va-scan-kubehunter
+      docker-flags:
+        - "--workdir /opt/kubehunter/"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env K8_NAMESPACE=${env.K8_NAMESPACE}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        - "-v ${env.PWD}/config:/opt/kubehunter/conf" #Place kubehunter config here
+        - "-v ${env.PWD}/build/kubehunter-report/:/tmp/reports"
+      cmd: " "
+
+  kubesec: #This is to scan the deployments, pods, daemonsets and statefulsets running in a Kubernetes cluster.
+    - task: get-chart
+      docker-image: adp-release-auto
+      cmd:
+        - curl ${env.INT_CHART_REPO}/${env.INT_CHART_NAME}/${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz -o ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz  
+    - task: helm-template
+      docker-image: adp-release-auto
+      cmd:
+        - "helm template dc-common ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-common=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_INSTALL_TIMEOUT} --wait --output-dir=build/helm_template_kubesec"
+        - "helm template dc-shared ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-shared=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_SHARED_INSTALL_TIMEOUT} --wait --output-dir=build/helm_template_kubesec"
+        - "helm template dc-dep-1 ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-deployment-1=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_DEP_INSTALL_TIMEOUT} --wait --output-dir=build/helm_template_kubesec"
+        - "helm template dc-dep-2 ${env.INT_CHART_NAME}-${env.INT_CHART_VERSION}.tgz --values ${env.SITE_VALUES} --set tags.eric-cbrs-dc-deployment-2=true --namespace {env.K8_NAMESPACE} --timeout ${env.HELM_DEP_INSTALL_TIMEOUT} --wait --output-dir=build/helm_template_kubesec"
+    - task: kubesec-scan-test
+      docker-image: va-scan-kubesec
+      docker-flags:
+        - "--workdir /opt/va-scan-kubesec/"
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "-v ${env.PWD}/config:/opt/va-scan-kubesec/conf"
+        - "-v ${env.PWD}/build/kubesec-reports/:/tmp/reports"
+        - "-v ${env.PWD}/build/helm_template_kubesec/:/tmp/src"
+      cmd: " "
+
+  nmap-port-scanning:
+    - task: nmap-port-scanning-test
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        - "--volume ${env.PWD}:${env.PWD}"
+      cmd: /test.py --kubernetes-admin-conf=${env.KUBECONFIG}
+           --helm-user=${env.SERO_USER}
+           --arm-api-token=${env.SERO_PASSWORD}
+           --kubernetes-namespace=${env.K8_NAMESPACE}
+           --nmap-config-file=nmap_config.yaml
+           --nmap-test
+
+  nmap-cleanup:
+    - task: nmap-cleanup
+      docker-image: adp-helm-kubectl
+      docker-flags:
+        - "--env KUBECONFIG=${env.KUBECONFIG}"
+        - "--env K8_NAMESPACE=${env.K8_NAMESPACE}"
+        - "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        - "--volume ${env.PWD}:${env.PWD}"
+      cmd: /usr/share/helm/v3.8.1/helm uninstall nmap-${env.K8_NAMESPACE} -n ${env.K8_NAMESPACE} --wait|true
+    #- task: unicorn-cleanup
+      #condition: unicorn-release-exists:condition-true
+      #docker-image: adp-helm-kubectl
+      #docker-flags:
+        #- "--env KUBECONFIG=${env.KUBECONFIG}"
+        #- "--env K8_NAMESPACE=${env.K8_NAMESPACE}"
+        #- "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}:ro"
+        #- "--volume ${env.PWD}:${env.PWD}"
+      #cmd: /usr/share/helm/v3.8.1/helm uninstall unicorn-${env.K8_NAMESPACE} -n ${env.K8_NAMESPACE} --wait|true

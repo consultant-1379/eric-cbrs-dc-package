@@ -1,0 +1,6 @@
+dependencies:
+- name: eric-data-document-database-pg
+  repository: https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-adp-gs-all-helm/
+  version: 6.2.0+63
+digest: sha256:6e22b572e943d3c65b6d4cadad1e007b04717754523a4132bcab64aad6c779bf
+generated: "2022-09-02T11:40:59.72871752+01:00"

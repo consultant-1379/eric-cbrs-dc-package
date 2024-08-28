@@ -1,0 +1,27 @@
+global:
+  metrics:
+    nodeexporter:
+      namespace: enm183
+
+eric-oss-ddc:
+  autoUpload:
+    deltaInterval: 60
+    enabled: true
+    ddpid: lmi_ieatenmc183_cbrs183
+    account: lmi_ieatenmc183_cbrs183@ddpenm2.athtem.eei.ericsson.se
+    password: _ieatenmc183_cbrs183
+    prefixUpload: "no"
+
+ingressInfo: &ingressIp
+  loadBalancerIP: 214.7.234.6
+
+eric-cbrs-dc:
+  DCM_HOST: 214.7.234.98
+  CBRS_LOAD_BALANCER: *ingressIp
+  networkPolicy:
+    sasPort: 4364
+
+eric-ran-cm-service:
+  eric-cm-yang-provider:
+    service:
+      loadBalancerIP: 214.7.234.7

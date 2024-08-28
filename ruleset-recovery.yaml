@@ -1,0 +1,324 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Disaster Recovery Rules"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+env:
+  - SFTP_URI(default=)
+  - BACKUP_NAME(default=)
+
+var:
+  - namespace
+  - docker-flags-kube-config
+  - sftp-uri
+  - sftp-password
+  - lftp-uri
+  - lftp-cmd
+  - brocli-cmd
+  - backup-name
+  - chart-version
+  - temp
+
+import:
+  test: ruleset-test.yaml
+  init: ruleset-init.yaml
+
+rules:
+  conditions:
+    - task: is-backup-name-empty
+      cmd: test "${env.BACKUP_NAME}" == ""
+    - task: is-sftp-uri-empty
+      cmd: test "${env.SFTP_URI}" == ""
+
+  set-cmds:
+    - task: set-default-sftp-vars
+      condition: conditions:is-sftp-uri-empty
+      cmd:
+        - echo "sftp://demo:demo@sftp-server-service.${var.namespace}-test.svc.cluster.local:22/sftp/DEFAULT" | tee .bob/var.lftp-uri
+        - echo "sftp://demo@sftp-server-service.${var.namespace}-test.svc.cluster.local:22/sftp" | tee .bob/var.sftp-uri
+        - echo "demo" | tee .bob/var.sftp-password
+    - task: set-custom-sftp-vars
+      condition: NOT conditions:is-sftp-uri-empty
+      cmd:
+        - echo ${env.SFTP_URI}/DEFAULT | tee .bob/var.lftp-uri
+        - echo ${env.SFTP_URI} | awk -F':' '{ print $3 }' | awk -F'@' '{ print $1 }' | tee .bob/var.sftp-password
+        - echo ${env.SFTP_URI} | sed 's/:${var.sftp-password}//g' | tee .bob/var.sftp-uri
+    - task: set-lftp-cmd
+      cmd:
+        - echo "${test.test-source-folder}/scripts/podcli.sh -n ${var.namespace}-test -d gauge-runner -l ${test.test-reports-folder}/lftp-steps.log -s " | tee .bob/var.lftp-cmd
+    - task: set-brocli-cmd
+      cmd:
+        - echo "${test.test-source-folder}/scripts/podcli.sh -n ${var.namespace} -d eric-ctrl-brocli -l ${test.test-reports-folder}/brocli-test.log " | tee .bob/var.brocli-cmd
+
+  execute-brocli-test:
+    - rule: set-cmds
+    - task: execute-brocli-test
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd:
+        - ${var.brocli-cmd} -c "brocli status" -e "Registered Agents"
+        - bash -c '${var.brocli-cmd} -c "brocli status| grep Agents -A 5 | cut -c 22- | sort" -e "cmpg*kmdced*kmldap*database-pg*search-engine"'
+        - ${var.brocli-cmd} -c "brocli list" -e "No backups found"
+        - ${var.brocli-cmd} -c "brocli retention set --limit 2 --purge" -e "Result* SUCCESS"
+        - ${var.brocli-cmd} -c "brocli retention show" -e "Automatic Backup Purge*True*Backup Limit*2"
+        - ${var.brocli-cmd} -c "brocli schedule set --scope DEFAULT --enable --prefix schtaging --export-uri ${var.sftp-uri} --export-password ${var.sftp-password} --export" -e "Enabled*True"
+        - bash -c '${var.brocli-cmd} -c "brocli schedule add --scope DEFAULT --start $(date --date='\''+30 seconds'\'' +'\''%Y-%m-%dT%H:%M:%S'\'') --every 1d" -e "Added backup interval"'
+        - ${var.brocli-cmd} -c "brocli schedule" -e "Backup schedule config for scope DEFAULT*Schedule intervals for scope DEFAULT"
+        - ${var.brocli-cmd} -c "brocli list" -e "schtaging*DEFAULT* COMPLETE" -r 100
+        - bash -c '${var.brocli-cmd} -c "brocli schedule | sed '\''0,/^Schedule intervals/d'\'' | head -4 | tail -1 | awk '\''{print \$1}'\''" | tee .bob/var.temp'
+        - bash -c '${var.brocli-cmd} -c "brocli schedule update ${var.temp} --start $(date --date='\''+90 seconds'\'' +'\''%Y-%m-%dT%H:%M:%S'\'') --every 1d" -e "Updated backup interval"'
+        - ${var.brocli-cmd} -c "brocli schedule remove ${var.temp} --yes" -e "Removed backup interval*No backup intervals scheduled"
+        - bash -c '${var.brocli-cmd} -c "brocli list | grep schtaging | awk '\''{ print \$1 }'\'' | head -1" | tee .bob/var.temp'
+        - ${var.brocli-cmd} -c "brocli delete ${var.temp} --yes" -e "Result* SUCCESS" -r 10
+        - ${var.brocli-cmd} -c "brocli list" -e "No backups found"
+        - ${var.brocli-cmd} -c "brocli retention set --limit 2 --no-purge" -e "Result* SUCCESS"
+        - ${var.brocli-cmd} -c "brocli retention show" -e "Automatic Backup Purge*False*Backup Limit*2"
+        - bash -c '${var.brocli-cmd} -c "brocli status --history | grep -B1 schtaging | grep EXPORT | tail -1" -e "FINISHED* SUCCESS" -r 30'
+
+  backup-data:
+    - rule: set-cmds
+    - task: set-default-backup-name
+      condition: conditions:is-backup-name-empty
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - helm list -n ${var.namespace} | grep eric-cbrs-dc-common | awk '{ print $9}' | awk -F'eric-cbrs-dc-package-' '{ print $2}' | tee .bob/var.temp
+        - echo cbrs_${var.temp}_$(date '+%Y-%m-%d-%H-%M-%S') | tee .bob/var.backup-name
+    - task: set-custom-backup-name
+      condition: NOT conditions:is-backup-name-empty
+      cmd:
+        - echo ${env.BACKUP_NAME} | tee .bob/var.backup-name
+    - task: backup-data
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.brocli-cmd} -c "brocli create ${var.backup-name} --scope DEFAULT" -e "FINISHED* SUCCESS"
+        - ${var.brocli-cmd} -c "brocli export --scope DEFAULT --uri ${var.sftp-uri} --password ${var.sftp-password} ${var.backup-name}" -e "FINISHED* SUCCESS"
+        - ${var.brocli-cmd} -c "brocli delete ${var.backup-name} --yes" -e "FINISHED* SUCCESS"
+    - task: backup-unseal-key
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c 'kubectl get secrets eric-sec-key-management-unseal-key -n ${var.namespace} -o yaml | grep -A 1 "^data:" > ${test.test-target-folder}/unseal-key-patch.yaml'
+        - kubectl cp ${test.test-target-folder}/unseal-key-patch.yaml ${var.namespace}-test/gauge-runner:/${var.backup-name}.unseal-key-patch.yaml --retries=3
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"put -E ${var.backup-name}.unseal-key-patch.yaml; exit\""
+    - rule: test.execute-test
+      condition: init.conditions:is-enm-enroll
+      properties:
+        - test-tag: "dcsaBackupGroups"
+    - task: backup-group-ids
+      condition: init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo "kubectl exec gauge-runner -n ${var.namespace}-test --" | tee .bob/var.temp
+        - ${var.temp} sh -c "mv gauge-tests/groups.txt ${var.backup-name}.groups.txt"
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"put -E ${var.backup-name}.groups.txt; exit\""
+    - rule: list-exported-backups
+
+  check-sftp-access:
+    - rule: set-cmds
+    - task: check-sftp-access
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo ${var.lftp-uri} | sed 's/\/DEFAULT//g' | tee .bob/var.temp
+        - ${var.lftp-cmd} -c "lftp ${var.temp}"
+
+  list-exported-backups:
+    - rule: check-sftp-access
+    - task: list-exported-backups
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\""
+
+  collect-backups:
+    - task: collect-backups
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl cp ${var.namespace}-test/sftp-server:/home/demo/sftp/DEFAULT ${test.test-logs-folder} --retries=3
+
+  test-schedule-setup:
+    - rule: set-cmds
+    - task: backup-using-schedule
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.brocli-cmd} -c "brocli schedule set --scope DEFAULT --enable --export --prefix disaster --export-uri ${var.sftp-uri} --export-password ${var.sftp-password}" -e "Enabled*True"
+        - bash -c '${var.brocli-cmd} -c "brocli schedule add --scope DEFAULT --start $(date --date='\''+30 seconds'\'' +'\''%Y-%m-%dT%H:%M:%S'\'') --every 1d" -e "Added backup interval"'
+        - ${var.brocli-cmd} -c "brocli schedule" -e "Backup schedule config for scope DEFAULT*Schedule intervals for scope DEFAULT"
+        - ${var.brocli-cmd} -c "brocli list" -e "disaster*DEFAULT* COMPLETE" -r 100
+        - bash -c '${var.brocli-cmd} -c "brocli list | grep disaster | awk '\''{ print \$1 }'\'' | head -1" | tee .bob/var.backup-name'
+        - bash -c '${var.brocli-cmd} -c "brocli status --history | grep -B1 disaster | grep EXPORT | tail -1" -e "FINISHED* SUCCESS" -r 30'
+        - ${var.brocli-cmd} -c "brocli delete ${var.backup-name} --yes" -e "Result* SUCCESS" -r 10
+    - task: backup-data:backup-unseal-key
+    - rule: list-exported-backups
+
+  test-schedule-restored:
+    - rule: set-cmds
+    - task: test-schedule-restored
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.brocli-cmd} -c "brocli schedule" -e "Backup schedule config for scope DEFAULT*Enabled*True*Prefix*disaster*Auto Export*True*URI*${var.sftp-uri}*Schedule intervals for scope DEFAULT"
+        - bash -c '${var.brocli-cmd} -c "brocli schedule | sed '\''0,/^Schedule intervals/d'\'' | head -4 | tail -1 | awk '\''{print \$1}'\''" | tee .bob/var.temp'
+        - ${var.brocli-cmd} -c "brocli schedule remove ${var.temp} --yes" -e "Removed backup interval*No backup intervals scheduled"
+        - ${var.brocli-cmd} -c "brocli list" -e "No backups found"
+
+  find-sftp-backup-unseal-key:
+    - task: set-default-unseal-key
+      condition: conditions:is-backup-name-empty
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep unseal-key-patch.yaml$ | grep ${var.chart-version} | tail -1 | awk '{ print $9}' | tee .bob/var.backup-name
+    - task: set-custom-unseal-key
+      condition: NOT conditions:is-backup-name-empty
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep unseal-key-patch.yaml$ | grep ${env.BACKUP_NAME} | tail -1 | awk '{ print $9}' | tee .bob/var.backup-name        
+    - task: check-backup-exists
+      cmd:
+        - test ${var.backup-name} != "None"
+
+  find-sftp-backup-group-ids:
+    - task: set-default-group-ids
+      condition: conditions:is-backup-name-empty AND init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep groups.txt$ | grep ${var.chart-version} | tail -1 | awk '{ print $9}' | tee .bob/var.backup-name
+    - task: set-custom-group-ids
+      condition: NOT conditions:is-backup-name-empty AND init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep groups.txt$ | grep ${env.BACKUP_NAME} | tail -1 | awk '{ print $9}' | tee .bob/var.backup-name
+    - task: check-backup-exists
+      condition: init.conditions:is-enm-enroll
+      cmd:
+        - test ${var.backup-name} != "None"
+
+  find-sftp-backup-data:
+    - task: set-default-backup-name
+      condition: conditions:is-backup-name-empty
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep tar.gz$ | grep ${var.chart-version} | tail -1 | awk '{ print $9}' | sed 's/.tar.gz//g' | tee .bob/var.backup-name
+    - task: set-custom-backup-name
+      condition: NOT conditions:is-backup-name-empty
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"ls\"" | grep tar.gz$ | grep ${env.BACKUP_NAME} | tail -1 | awk '{ print $9}' | sed 's/.tar.gz//g' | tee .bob/var.backup-name
+    - task: check-backup-exists
+      cmd:
+        - test "${var.backup-name}" != "None"
+
+  restore-data:
+    - rule: set-cmds
+    - rule: list-exported-backups
+    - rule: find-sftp-backup-unseal-key
+    - task: import-unseal-key
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - rm -f ${test.test-target-folder}/unseal-key-patch.yaml
+        - ${var.lftp-cmd} -c "rm -rf ${var.backup-name}"
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"get ${var.backup-name}; exit\""
+        - kubectl cp ${var.namespace}-test/gauge-runner:/${var.backup-name} ${test.test-target-folder}/unseal-key-patch.yaml --retries=3
+    - rule: find-sftp-backup-group-ids
+    - task: import-group-ids
+      condition: init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - rm -f gauge-tests/groups.txt
+        - ${var.lftp-cmd} -c "rm -rf ${var.backup-name}"
+        - ${var.lftp-cmd} -c "lftp ${var.lftp-uri} -e \"get ${var.backup-name}; exit\""
+        - echo "kubectl exec gauge-runner -n ${var.namespace}-test --" | tee .bob/var.temp
+        - ${var.temp} sh -c "mv ${var.backup-name} gauge-tests/groups.txt"
+    - rule: find-sftp-backup-data
+    - task: import-backup
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.brocli-cmd} -c "brocli import ${var.backup-name}.tar.gz --uri '${var.sftp-uri}' --password '${var.sftp-password}'" -e "Result* SUCCESS" -r 5
+        - bash -c '${var.brocli-cmd} -c "brocli list | grep COMPLETE | awk '\''{ print \$1 }'\'' | tail -1" | tee .bob/var.backup-name'
+    - task: pre-restore-steps
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl scale --replicas=0 statefulset/eric-sec-key-management-main -n ${var.namespace}
+        - kubectl wait pod eric-sec-key-management-main-0 --for delete --timeout=2m -n ${var.namespace}
+        - kubectl scale --replicas=0 deployment -l app=dpcoordinator -n ${var.namespace}
+        - kubectl wait pods -l app=dpcoordinator --for delete --timeout=2m -n ${var.namespace}
+    - task: restore-backup
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - ${var.brocli-cmd} -c "brocli restore ${var.backup-name}" -e "Result* SUCCESS" -r 3
+        - ${var.brocli-cmd} -c "brocli restore ${var.backup-name} --scope DEFAULT-bro" -e "Result* SUCCESS" -r 3
+        - ${var.brocli-cmd} -c "brocli delete ${var.backup-name} --yes" -e "Result* SUCCESS" -r 10
+    - task: post-restore-steps
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl scale --replicas=2 deployment -l app=dpcoordinator -n ${var.namespace}
+        - kubectl wait pods -l app=dpcoordinator --for condition=Ready --timeout=4m -n ${var.namespace}
+        - kubectl patch secrets eric-sec-key-management-unseal-key -n ${var.namespace} --patch-file ${test.test-target-folder}/unseal-key-patch.yaml
+        - kubectl scale --replicas=1 statefulset/eric-sec-key-management-main -n ${var.namespace}
+        - kubectl wait pod eric-sec-key-management-main-0 --for condition=Ready --timeout=2m -n ${var.namespace}
+    - task: wait-for-pod-refresh-keys
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo "Wait 5 minutes for all the DCSA pods to be refreshed with the restored keys and certificates"
+        - sleep 300
+    - rule: copy-cmyp-script
+    - rule: list-dc-rest-server-certs
+    - rule: test.execute-test
+      condition: init.conditions:is-enm-enroll
+      properties:
+        - test-tag: "dcsaRestoreGroups"
+
+  copy-cmyp-script:
+    - task: copy-script
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl cp k8s-test/scripts/cmyp_config.cli ${var.namespace}-test/gauge-runner:/ --retries=3
+        - kubectl cp k8s-test/scripts/cmyp_show.cli ${var.namespace}-test/gauge-runner:/ --retries=3
+
+  list-dc-rest-server-certs:
+    - task: list-cmyp-certs
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- bash -c "./cmyp_show.cli ${var.namespace} \"show running-config keystore asymmetric-keys asymmetric-key cbrs-dc-sa-enm\""
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- bash -c "./cmyp_show.cli ${var.namespace} \"show running-config truststore certificates cbrsPubsDcSaEnmCaCerts\""
+    - task: get-secrets
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl get secret eric-cbrs-dc-server-tls-certificate-and-key -n ${var.namespace} -o yaml
+        - kubectl get secret eric-cbrs-dc-trusted-ca-certs -n ${var.namespace} -o yaml
+    - task: list-mounted-cert-folders
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec -it deploy/eric-cbrs-dc-1 -n ${var.namespace} -- ls -l /ericsson/cbrs-dc-sa/certificates/enm/..data/ || true
+        - kubectl exec -it deploy/eric-cbrs-dc-1 -n ${var.namespace} -- ls -l /ericsson/cbrs-dc-sa/certificates/enm/cacerts/..data/ || true
+    - task: list-jks-folders
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec -it deploy/eric-cbrs-dc-1 -n ${var.namespace} -- ls -l /ericsson/cbrs-dc-sa/keystore/ || true
+        - kubectl exec -it deploy/eric-cbrs-dc-1 -n ${var.namespace} -- ls -l /ericsson/cbrs-dc-sa/truststore/ || true

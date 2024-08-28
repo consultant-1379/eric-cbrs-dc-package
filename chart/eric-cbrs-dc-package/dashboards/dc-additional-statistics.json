@@ -1,0 +1,648 @@
+{
+  "namespace": "monitoring",
+  "dashboards": [
+    {
+      "_id": "DC_additional_statistics",
+      "title": "DC Additional Statistics",
+      "order": 1,
+      "apps": [
+        "statusOverview"
+      ],
+      "tiles": [
+        {
+          "xSize": 3,
+          "widget": "grant_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "grant_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "grant_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "grant_responses_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "heartbeat_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "heartbeat_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "heartbeat_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "heartbeat_responses_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "registration_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "registration_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "registration_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "registration_responses_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "relinquishment_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "relinquishment_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "relinquishment_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "relinquishment_responses_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "renewed_grants_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "renewed_grants_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "spectrum_inquiry_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "spectrum_inquiry_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "spectrum_inquiry_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "spectrum_inquiry_responses_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "suspended_grants_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "suspended_grants_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "terminated_grants_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "terminated_grants_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "inactive_cells_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "inactive_cells_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "registered_cbsds_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "registered_cbsds_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "deregistration_requests_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "deregistration_requests_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "deregistration_responses_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "deregistration_responses_timeline_widget"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "_id": "grant_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of grant requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "grant_requests"
+        }
+      ]
+    },
+    {
+      "_id": "grant_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of grant requests (5-min Average)",
+      "sources": [
+         {
+            "source": "grant_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "grant_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of grant responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "grant_responses"
+        }
+      ]
+    },
+    {
+      "_id": "grant_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of grant responses (5-min Average)",
+      "sources": [
+         {
+            "source": "grant_responses"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "heartbeat_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of heartbeat requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "heartbeat_requests"
+        }
+      ]
+    },
+    {
+      "_id": "heartbeat_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of heartbeat requests (5-min Average)",
+      "sources": [
+         {
+            "source": "heartbeat_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "heartbeat_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of heartbeat responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "heartbeat_responses"
+        }
+      ]
+    },
+    {
+      "_id": "heartbeat_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of heartbeat responses (5-min Average)",
+      "sources": [
+         {
+            "source": "heartbeat_responses"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "registration_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of registration requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "registration_requests"
+        }
+      ]
+    },
+    {
+      "_id": "registration_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of registration requests (5-min Average)",
+      "sources": [
+         {
+            "source": "registration_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "registration_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of registration responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "registration_responses"
+        }
+      ]
+    },
+    {
+      "_id": "registration_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of registration responses (5-min Average)",
+      "sources": [
+         {
+            "source": "registration_responses"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "relinquishment_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of relinquishment requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "relinquishment_requests"
+        }
+      ]
+    },
+    {
+      "_id": "relinquishment_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of relinquishment requests (5-min Average)",
+      "sources": [
+         {
+            "source": "relinquishment_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "relinquishment_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of relinquishment responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "relinquishment_responses"
+        }
+      ]
+    },
+    {
+      "_id": "relinquishment_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of relinquishment responses (5-min Average)",
+      "sources": [
+         {
+            "source": "relinquishment_responses"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "renewed_grants_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of renewed grants (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "renewed_grants"
+        }
+      ]
+    },
+    {
+      "_id": "renewed_grants_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of renewed grants (5-min Average)",
+      "sources": [
+         {
+            "source": "renewed_grants"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "spectrum_inquiry_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of spectrum inquiry requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "spectrum_inquiry_requests"
+        }
+      ]
+    },
+    {
+      "_id": "spectrum_inquiry_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of spectrum inquiry requests (5-min Average)",
+      "sources": [
+         {
+            "source": "spectrum_inquiry_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "spectrum_inquiry_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of spectrum inquiry responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "spectrum_inquiry_responses"
+        }
+      ]
+    },
+    {
+      "_id": "spectrum_inquiry_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of spectrum inquiry responses (5-min Average)",
+      "sources": [
+         {
+            "source": "spectrum_inquiry_responses"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "suspended_grants_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of suspended grants (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "suspended_grants"
+        }
+      ]
+    },
+    {
+      "_id": "suspended_grants_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of suspended grants (5-min Average)",
+      "sources": [
+         {
+            "source": "suspended_grants"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "terminated_grants_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of terminated grants (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "terminated_grants"
+        }
+      ]
+    },
+    {
+      "_id": "terminated_grants_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of terminated grants (5-min Average)",
+      "sources": [
+         {
+            "source": "terminated_grants"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "inactive_cells_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of inactive cells",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "inactive_cells"
+        }
+      ]
+    },
+    {
+      "_id": "inactive_cells_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of inactive cells",
+      "sources": [
+         {
+            "source": "inactive_cells"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "registered_cbsds_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of registered CBSDs",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "registered_cbsds"
+        }
+      ]
+    },
+    {
+      "_id": "registered_cbsds_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of registered cbsds",
+      "sources": [
+         {
+            "source": "registered_cbsds"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "deregistration_requests_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of deregistration requests (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "deregistration_requests"
+        }
+      ]
+    },
+    {
+      "_id": "deregistration_requests_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of deregistration requests (5-min Average)",
+      "sources": [
+         {
+            "source": "deregistration_requests"
+         }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "deregistration_responses_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of deregistration responses (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "deregistration_responses"
+        }
+      ]
+    },
+    {
+      "_id": "deregistration_responses_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of deregistration responses (5-min Average)",
+      "sources": [
+         {
+            "source": "deregistration_responses"
+         }
+      ],
+      "maximizable": true
+    }
+  ],
+  "sources": [
+    {
+      "_id": "grant_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfGrantRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "grant_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfGrantResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "heartbeat_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfHeartbeatRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "heartbeat_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfHeartbeatResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "registration_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRegistrationRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "registration_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRegistrationResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "relinquishment_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRelinquishmentRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "relinquishment_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRelinquishmentResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "renewed_grants",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRenewedGrants[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "spectrum_inquiry_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfSpectrumInquiryRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "spectrum_inquiry_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfSpectrumInquiryResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "suspended_grants",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfSuspendedGrants[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "terminated_grants",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTerminatedGrants[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "inactive_cells",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfInactiveCells) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "registered_cbsds",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRegisteredCbsds) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "deregistration_requests",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfDeregistrationRequests[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "deregistration_responses",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfDeregistrationResponses[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Init Rules"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+env:
+  - HOME
+  - PWD
+  - KUBECONFIG (default=${env.PWD}/.kube/config)
+  - DOCKER_NETWORK (default=--network host)
+  - ENVIRONMENT_NAME (default=)
+  - NAMESPACE (default=)
+  - GERRIT_REFSPEC (default=)
+  - INT_CHART_VERSION (default=)
+  - CSAR_VERSION (default=)
+  - ENM_ENROLL(default=false)
+  - TEST_SPEC_TAG (default=\!slow)
+
+var:
+  - namespace
+  - chart-version
+  - chart-url
+  - built-version
+  - built-url
+  - docker-flags-kube-config
+  - integration-values-env
+  - temp
+
+import:
+  build: ruleset-build.yaml
+
+rules:
+  init-vars:
+    - rule: init-docker-flags
+    - rule: init-chart-version
+    - rule: init-namespace
+    - rule: init-kubeconfig
+    - rule: init-env-integration-values
+    - task: print-vars
+      cmd: |
+        << 'EOF'
+        Environment variables are
+          ENVIRONMENT_NAME            : ${env.ENVIRONMENT_NAME}
+          NAMESPACE                   : ${env.NAMESPACE}
+          GERRIT_REFSPEC              : ${env.GERRIT_REFSPEC}
+          INT_CHART_VERSION           : ${env.INT_CHART_VERSION}
+          CSAR_VERSION                : ${env.CSAR_VERSION}
+          ENM_ENROLL                  : ${env.ENM_ENROLL}
+          TEST_SPEC_TAG               : ${env.TEST_SPEC_TAG}
+        Initialized variables are
+          var.namespace               : ${var.namespace}
+          var.chart-version           : ${var.chart-version}
+          var.chart-url               : ${var.chart-url}
+          var.integration-values-env  : ${var.integration-values-env}
+          var.docker-flags-kube-config: ${var.docker-flags-kube-config}
+        EOF
+    - task: print-environment
+      cmd:
+        - cat ${env.KUBECONFIG} | grep server
+
+  init-namespace:
+    - task: set-defined-namespace
+      condition: NOT conditions:is-default-namespace
+      cmd:
+        - echo ${env.NAMESPACE} | tee .bob/var.namespace
+    - task: set-namespace-from-chart-version
+      condition: conditions:is-default-namespace
+      cmd:
+        - bash -c 'echo cbrs-${var.chart-version} | sed "s/\./-/g" | tee .bob/var.namespace'
+
+  init-docker-flags:
+    - task: set-docker-flags
+      cmd:
+        - echo "${env.DOCKER_NETWORK}"
+          "--env KUBECONFIG=${env.KUBECONFIG}"
+          "--env KUBECTL_VERSION=1.25.3"
+          "--volume ${env.PWD}:${env.PWD}"
+          "--volume ${env.HOME}:${env.HOME}"
+          "--volume ${env.KUBECONFIG}:${env.KUBECONFIG}" | tr -d '\n'  | tee .bob/var.docker-flags-kube-config
+
+  init-kubeconfig:
+    - task: init-kubeconfig
+      docker-image: adp-helm-kubectl
+      condition: NOT conditions:is-default-environment
+      cmd:
+        - rm -rf ${env.KUBECONFIG}
+        - mkdir -p .kube
+        - bash -c "wget -q -O - https://atvdit.athtem.eei.ericsson.se/api/deployments | jq '.[] | .name' | sed 's/\"//g' | egrep \"cnis|ieatenm\" | grep ${env.ENVIRONMENT_NAME}" | tee .bob/var.temp
+        - bash -c "wget -q -O - http://atvdit.athtem.eei.ericsson.se/api/deployments/?q=name=${var.temp} | jq '.[].documents[] | select(.schema_name==\"cloud_native_enm_kube_config\") | .document_id' | sed 's/\"//g'" | tee .bob/var.temp
+        - bash -c "wget -q -O - https://atvdit.athtem.eei.ericsson.se/api/documents/${var.temp} | jq '.content' | sed 's/\"//g'" > ${env.KUBECONFIG}
+        - test $(stat -c%s "${env.KUBECONFIG}") -gt 200
+          || wget http://object.athtem.eei.ericsson.se/de-cni/ccd/ccd-${env.ENVIRONMENT_NAME}/ccd-${env.ENVIRONMENT_NAME}.admin.conf -O - > ${env.KUBECONFIG}
+          || wget http://object.athtem.eei.ericsson.se/de-cni/ccd/ccd-${env.ENVIRONMENT_NAME}/ccd-${env.ENVIRONMENT_NAME}.target_kubeconfig.conf -O - > ${env.KUBECONFIG}
+    - task: test-kubeconfig
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd:
+        - kubectl get namespaces
+
+  init-chart-version:
+    - rule: set-chart-latest-drop
+      condition: conditions:is-version-latest-drop OR
+                 ( NOT conditions:is-version-package-based AND
+                   NOT conditions:is-version-csar-based )
+    - rule: set-chart-latest-release
+      condition: conditions:is-version-latest-released
+    - rule: set-chart-build-local
+      condition: conditions:is-version-build-local
+    - rule: set-chart-from-param
+      condition: conditions:is-version-package-based AND
+                 NOT conditions:is-version-keyword
+    - rule: set-chart-from-csar
+      condition: conditions:is-version-csar-based AND
+                 NOT conditions:is-version-keyword
+
+  init-env-integration-values:
+    - task: prepare-env-int-values-default
+      cmd:
+        - echo "k8s-test/integration-values-env-default.yaml" | tee .bob/var.integration-values-env
+    - task: prepare-env-int-values
+      condition: NOT conditions:is-default-environment
+      cmd:
+        - ls k8s-test | grep integration-values-env | grep "${env.ENVIRONMENT_NAME}" | tee .bob/var.temp
+        - test ${var.temp} == "None" || echo "k8s-test/${var.temp}" | tee .bob/var.integration-values-env
+
+  set-chart-from-param:
+    - task: set-chart-version-int
+      cmd: bash -c 'echo ${env.INT_CHART_VERSION} > .bob/var.chart-version'
+    - rule: set-chart-url-from-package-version
+
+  set-chart-baseline:
+    - task: set-chart-version-baseline
+      docker-image: adp-helm-kubectl
+      cmd: curl ${build.helm-repo-release}/eric-cbrs-dc-package/ 2>/dev/null | awk -F '>eric-cbrs-dc-package-' '{ print $2 }' | awk -F '.tgz' '{ print $1 }' | uniq | sort -V | tail -1 | tee .bob/var.chart-version
+    - task: set-chart-url-baseline
+      cmd: echo ${build.helm-repo-release}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz > .bob/var.chart-url
+
+  set-chart-build-local:
+    - rule: build.prepare
+      properties:
+        - upload-to-internal-ci: "false"
+
+  set-chart-latest-drop:
+    - task: set-chart-version-latest-drop
+      docker-image: adp-helm-kubectl
+      cmd: curl ${build.helm-repo-drop}/eric-cbrs-dc-package/ 2>/dev/null | awk -F '>eric-cbrs-dc-package-' '{ print $2 }' | awk -F '.tgz' '{ print $1 }' | uniq | sort -V | tail -1 | tee .bob/var.chart-version
+    - task: set-chart-url-latest-drop
+      cmd: echo ${build.helm-repo-drop}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz | tee .bob/var.chart-url
+
+  set-chart-latest-release:
+    - task: set-chart-version-latest-release
+      docker-image: adp-helm-kubectl
+      cmd: curl ${build.helm-repo-release}/eric-cbrs-dc-package/ 2>/dev/null | awk -F '>eric-cbrs-dc-package-' '{ print $2 }' | awk -F '.tgz' '{ print $1 }' | uniq | sort -V | tail -1 | tee .bob/var.chart-version
+    - task: set-chart-url-latest-release
+      cmd: echo ${build.helm-repo-release}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz | tee .bob/var.chart-url
+
+  set-chart-from-csar:
+    - task: set-csar-chart-url-from-version
+      docker-image: adp-helm-kubectl
+      cmd:
+        - rm -f .bob/var.chart-url
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-internal}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar
+          && echo ${build.helm-repo-internal}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar | tee .bob/var.chart-url
+          || echo "Not found in internal"
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-drop}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar
+          && echo ${build.helm-repo-drop}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar | tee .bob/var.chart-url
+          || echo "Not found in drop"
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-release}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar
+          && echo ${build.helm-repo-release}/eric-cbrs-dc-csar/eric-cbrs-dc-package-${env.CSAR_VERSION}.csar | tee .bob/var.chart-url
+          || echo "Not found in release"
+        - test ${var.chart-url} != "None"
+    - task: set-chart-version-from-csar
+      docker-image: adp-helm-kubectl
+      cmd:
+        - curl ${var.chart-url} -r -100000 -s -o -
+          | awk -F'eric-cbrs-dc-package-' '{ print $2 }'
+          | awk -F'.tgz' '{ print $1 }'
+          | grep .
+          | tee .bob/var.chart-version
+    - rule: set-chart-url-from-package-version
+
+  set-chart-url-from-package-version:
+    - task: set-chart-url-from-chart-version
+      docker-image: adp-helm-kubectl
+      cmd:
+        - rm -f .bob/var.chart-url
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-internal}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz
+          && echo ${build.helm-repo-internal}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz | tee .bob/var.chart-url
+          || echo "Not found in internal"
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-drop}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz
+          && echo ${build.helm-repo-drop}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz | tee .bob/var.chart-url
+          || echo "Not found in drop"
+        - curl --silent --head --fail --output /dev/null ${build.helm-repo-release}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz
+          && echo ${build.helm-repo-release}/eric-cbrs-dc-package/eric-cbrs-dc-package-${var.chart-version}.tgz | tee .bob/var.chart-url
+          || echo "Not found in release"
+        - test ${var.chart-url} != "None"
+
+  conditions:
+    - task: is-default-namespace
+      cmd: test "${env.NAMESPACE}" == ""
+    - task: is-default-environment
+      cmd: test "${env.ENVIRONMENT_NAME}" == ""
+    - task: is-enm-enroll
+      cmd: test "${env.ENM_ENROLL}" == "true"
+    - task: is-version-keyword
+      cmd: echo "${env.CSAR_VERSION}${env.INT_CHART_VERSION}" | egrep "release|drop|build"
+    - task: is-version-latest-released
+      cmd: test "${env.CSAR_VERSION}" == "release" || test "${env.INT_CHART_VERSION}" == "release"
+    - task: is-version-latest-drop
+      cmd: test "${env.CSAR_VERSION}" == "drop" || test "${env.INT_CHART_VERSION}" == "drop"
+    - task: is-version-build-local
+      cmd: test "${env.CSAR_VERSION}" == "build" || test "${env.INT_CHART_VERSION}" == "build"
+    - task: is-version-package-based
+      cmd: test "${env.INT_CHART_VERSION}" != ""
+    - task: is-version-csar-based
+      cmd: test "${env.CSAR_VERSION}" != ""
+
+  capture-start-time:
+   - task: capture-start-time
+     docker-image: adp-helm-kubectl
+     cmd: echo "start_time=$(date +'%F %T')" >> k8s-test/target/logs/timestamps.log
+
+  capture-end-time:
+   - task: capture-end-time
+     docker-image: adp-helm-kubectl
+     cmd: echo "end_time=$(date +'%F %T')" >> k8s-test/target/logs/timestamps.log

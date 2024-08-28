@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dp-test-server-service
+spec:
+  type: ExternalName
+  externalName: dp-test-server-service.<namespace>.svc.cluster.local
+  ports:
+    - name: http-sas-port
+      port: 8305
+      protocol: TCP
+      targetPort: 8305
+    - name: https-sas-port
+      port: 8306
+      protocol: TCP
+      targetPort: 8306
+    - name: baseband-port
+      port: 6513
+      protocol: TCP
+      targetPort: 6513
+    - name: http-pm-alarm-port
+      port: 43340
+      protocol: TCP
+      targetPort: 43340
+    - name: https-pm-alrm-port
+      port: 43341
+      protocol: TCP
+      targetPort: 43341

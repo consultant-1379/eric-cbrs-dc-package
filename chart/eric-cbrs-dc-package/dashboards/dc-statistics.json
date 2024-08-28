@@ -1,0 +1,619 @@
+{
+  "namespace": "monitoring",
+  "dashboards": [
+    {
+      "_id": "DC_statistics_dashboard",
+      "title": "DC Statistics",
+      "order": 0,
+      "apps": [
+        "statusOverview"
+      ],
+      "tiles": [
+        {
+          "xSize": 3,
+          "widget": "failed_attempts_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "failed_attempts_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "time_taken_to_post_request_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "time_taken_to_post_request_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "requests_posted_to_sas_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "requests_posted_to_sas_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "heartbeat_response_time_from_sas_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "heartbeat_response_time_from_sas_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "slowest_hb_response_time_per_minute_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "slowest_hb_response_time_per_minute_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "time_taken_to_update_expiry_time_on_node_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "time_taken_to_update_expiry_time_on_node_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "number_of_times_node_updated_with_expiry_time_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "number_of_times_node_updated_with_expiry_time_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "value_of_transmit_expiry_time_set_on_cells_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "value_of_transmit_expiry_time_set_on_cells_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "number_of_transmit_expiry_times_set_on_cells_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "number_of_transmit_expiry_times_set_on_cells_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "number_of_transmit_expiry_time_per_hbresponse_from_sas_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "number_of_transmit_expiry_time_per_hbresponse_from_sas_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "value_of_transmit_expiry_time_per_hbresponse_from_sas_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "value_of_transmit_expiry_time_per_hbresponse_from_sas_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "min_transmit_expiry_time_per_minute_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "min_transmit_expiry_time_per_minute_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "active_cells_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "active_cells_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "maintained_grants_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "maintained_grants_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "transmitting_cells_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "transmitting_cells_timeline_widget"
+        },
+        {
+          "xSize": 3,
+          "widget": "valid_grants_kpi_widget"
+        },
+        {
+          "xSize": 7,
+          "widget": "valid_grants_timeline_widget"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "_id": "failed_attempts_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of failed attempts in contacting SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "failed_attempts"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "failed_attempts_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of failed attempts in contacting SAS (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "failed_attempts"
+        }
+      ]
+    },
+    {
+      "_id": "time_taken_to_post_request_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in time taken to send request and get a response from SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "time_taken_to_post_request"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "time_taken_to_post_request_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in time taken to send request and get a response from SAS (5-min Average)",
+      "unit": "Time(ms)",
+      "sources": [
+        {
+          "source": "time_taken_to_post_request"
+        }
+      ]
+    },
+    {
+      "_id": "requests_posted_to_sas_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of requests posted to SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "requests_posted_to_sas"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "requests_posted_to_sas_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of requests posted to SAS (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "requests_posted_to_sas"
+        }
+      ]
+    },
+    {
+      "_id": "heartbeat_response_time_from_sas_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in total time taken to receive Heartbeat Responses from SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "heartbeat_response_time_from_sas"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "heartbeat_response_time_from_sas_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in total time taken to receive Heartbeat Responses from SAS (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "heartbeat_response_time_from_sas"
+        }
+      ]
+    },
+    {
+      "_id": "slowest_hb_response_time_per_minute_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Slowest time per minute taken to receive Heartbeat Responses from SAS",
+      "sources": [
+        {
+          "source": "slowest_hb_response_time_per_minute"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "slowest_hb_response_time_per_minute_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Slowest time per minute taken to receive Heartbeat Responses from SAS",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "slowest_hb_response_time_per_minute"
+        }
+      ]
+    },
+    {
+      "_id": "time_taken_to_update_expiry_time_on_node_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in time taken to set CBRS Transmit Expiry Times on node (5-min Average)",
+      "sources": [
+        {
+          "source": "time_taken_to_update_expiry_time_on_node"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "time_taken_to_update_expiry_time_on_node_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in time taken to set CBRS Transmit Expiry Times on node (5-min Average)",
+      "unit": "Time(ms)",
+      "sources": [
+        {
+          "source": "time_taken_to_update_expiry_time_on_node"
+        }
+      ]
+    },
+    {
+      "_id": "number_of_times_node_updated_with_expiry_time_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in count of Transmit Expiry Time updates on nodes (5-min Average)",
+      "sources": [
+        {
+          "source": "number_of_times_node_updated_with_expiry_time"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "number_of_times_node_updated_with_expiry_time_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in count of Transmit Expiry Time updates on nodes (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "number_of_times_node_updated_with_expiry_time"
+        }
+      ]
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_set_on_cells_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in Transmit Expiry Time set on the cells (5-min Average)",
+      "sources": [
+        {
+          "source": "value_of_transmit_expiry_time_set_on_cells"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_set_on_cells_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in Transmit Expiry Time set on the cells (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "value_of_transmit_expiry_time_set_on_cells"
+        }
+      ]
+    },
+    {
+      "_id": "number_of_transmit_expiry_times_set_on_cells_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in number of times Transmit Expiry Time set on cells (5-min Average)",
+      "sources": [
+        {
+          "source": "number_of_transmit_expiry_times_set_on_cells"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "number_of_transmit_expiry_times_set_on_cells_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in number of times Transmit Expiry Time set on cells (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "number_of_transmit_expiry_times_set_on_cells"
+        }
+      ]
+    },
+    {
+      "_id": "number_of_transmit_expiry_time_per_hbresponse_from_sas_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in total number of Transmit Expiry Time in Heartbeat Response received from SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "number_of_transmit_expiry_time_per_hbresponse_from_sas"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "number_of_transmit_expiry_time_per_hbresponse_from_sas_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in total number of Transmit Expiry Time in Heartbeat Response received from SAS (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "number_of_transmit_expiry_time_per_hbresponse_from_sas"
+        }
+      ]
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_per_hbresponse_from_sas_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Increase in total Transmit Expiry Time per Heartbeat Response received from SAS (5-min Average)",
+      "sources": [
+        {
+          "source": "value_of_transmit_expiry_time_per_hbresponse_from_sas"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_per_hbresponse_from_sas_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Increase in total Transmit Expiry Time per Heartbeat Response received from SAS (5-min Average)",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "value_of_transmit_expiry_time_per_hbresponse_from_sas"
+        }
+      ]
+    },
+    {
+      "_id": "min_transmit_expiry_time_per_minute_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Minimum Transmit Expiry Time per minute given by SAS",
+      "sources": [
+        {
+          "source": "min_transmit_expiry_time_per_minute"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "min_transmit_expiry_time_per_minute_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Minimum Transmit Expiry Time per minute given by SAS",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "min_transmit_expiry_time_per_minute"
+        }
+      ]
+    },
+    {
+      "_id": "active_cells_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of active cells being managed",
+      "subtitle": "External DDC Metrics",
+      "sources": [
+        {
+          "source": "active_cells"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "active_cells_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of active cells being managed",
+      "subtitle": "External DDC Metrics",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "active_cells"
+        }
+      ]
+    },
+    {
+      "_id": "maintained_grants_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of authorized grants maintained",
+      "subtitle": "External DDC Metrics",
+      "sources": [
+        {
+          "source": "maintained_grants"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "maintained_grants_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of authorized grants maintained",
+      "subtitle": "External DDC Metrics",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "maintained_grants"
+        }
+      ]
+    },
+    {
+      "_id": "transmitting_cells_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of transmitting cells",
+      "subtitle": "External DDC Metrics",
+      "sources": [
+        {
+          "source": "transmitting_cells"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "transmitting_cells_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of transmitting cells",
+      "subtitle": "External DDC Metrics",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "transmitting_cells"
+        }
+      ]
+    },
+    {
+      "_id": "valid_grants_kpi_widget",
+      "widgetType": "kpi",
+      "title": "Number of valid grants",
+      "subtitle": "External DDC Metrics",
+      "sources": [
+        {
+          "source": "valid_grants"
+        }
+      ],
+      "maximizable": true
+    },
+    {
+      "_id": "valid_grants_timeline_widget",
+      "widgetType": "timeline",
+      "title": "Number of valid grants",
+      "subtitle": "External DDC Metrics",
+      "unit": "Count",
+      "sources": [
+        {
+          "source": "valid_grants"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "_id": "failed_attempts",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfFailedAttemptsWithSas[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "time_taken_to_post_request",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToPostRequestsToSas[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "requests_posted_to_sas",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRequestsPostedToSAS[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "heartbeat_response_time_from_sas",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_hbResponseTimeFromSas[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "slowest_hb_response_time_per_minute",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_slowestHbResponseTimePerMinute) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "time_taken_to_update_expiry_time_on_node",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToUpdateExpiryTimeOnNode[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "number_of_times_node_updated_with_expiry_time",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTimesNodeUpdatedWithExpiryTime[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_set_on_cells",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_valueOfTransmitExpiryTimeSetOnCells[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "number_of_transmit_expiry_times_set_on_cells",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTransmitExpiryTimesSetOnCells[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "number_of_transmit_expiry_time_per_hbresponse_from_sas",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTransmitExpiryTimePerHbResponseFromSas[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "value_of_transmit_expiry_time_per_hbresponse_from_sas",
+      "sourceType": "prometheus",
+      "query": "sum(increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_valueOfTransmitExpiryTimePerHbResponseFromSas[5m])) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "min_transmit_expiry_time_per_minute",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_minTransmitExpiryTimePerMinute) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "active_cells",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfActiveCells) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "maintained_grants",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfMaintainedGrants) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "transmitting_cells",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTransmittingCells) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    },
+    {
+      "_id": "valid_grants",
+      "sourceType": "prometheus",
+      "query": "sum(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfValidGrants) by (instance)",
+      "splitByLabelName": "instance",
+      "labelOrder": "prometheusLabelLast"
+    }
+  ]
+}

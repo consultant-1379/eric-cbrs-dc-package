@@ -1,0 +1,125 @@
+apiVersion: v2
+appVersion: 1.16.0
+dependencies:
+- name: eric-ran-security-service-init
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.209.0+1
+- name: eric-ran-security-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.569.0
+- name: eric-ran-cm-service-init
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.26.0+1
+- name: eric-ran-cm-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.815.0
+- name: eric-ran-pm-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.982.0
+- name: eric-ran-br-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.56.0
+- name: eric-ctrl-brocli
+  repository: https://arm.epk.ericsson.se/artifactory/proj-enm-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.0.101-1
+- name: eric-data-document-database-pg
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-adp-gs-all-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 9.3.0+30
+- name: eric-ran-log-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.130.0
+- name: eric-data-search-engine-curator
+  repository: https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-adp-gs-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 3.18.0+6
+- name: eric-oss-ingress-controller-nx
+  repository: https://arm.epk.ericsson.se/artifactory/proj-eric-oss-ingress-ctr-nx-drop-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.1.0-70
+- name: eric-ran-db-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.633.0
+- name: eric-ran-fm-service
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-exilis-released-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.521.0
+- name: eric-cnom-document-database-mg
+  repository: https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-pc-released-helm
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.6.0+24
+- name: eric-cnom-server
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-pc-rs-released-helm
+  tags:
+  - eric-cbrs-dc-common
+  version: 2.13.1+8
+- name: eric-oss-ddc
+  repository: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-oss-ddc-drop-helm
+  tags:
+  - eric-cbrs-dc-common
+  version: 2.0.0-96
+- name: eric-pm-alert-manager
+  repository: https://arm.seli.gic.ericsson.se/artifactory/proj-adp-pm-alert-manager-drop-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.1.0-148
+- name: eric-enmsg-elasticsearch
+  repository: https://arm.epk.ericsson.se/artifactory/proj-enm-helm/
+  tags:
+  - eric-cbrs-dc-common
+  version: 1.2.0-92
+- name: eric-cbrs-dc
+  repository: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-released-helm
+  tags:
+  - eric-cbrs-dc-shared
+  version: 1.66.0+18
+- alias: eric-cbrs-dc-1
+  name: eric-cbrs-dc
+  repository: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-released-helm
+  tags:
+  - eric-cbrs-dc-deployment-1
+  version: 1.66.0+18
+- alias: eric-cbrs-dc-2
+  name: eric-cbrs-dc
+  repository: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-released-helm
+  tags:
+  - eric-cbrs-dc-deployment-2
+  version: 1.66.0+18
+- import-values:
+  - child: logShipper.config
+    parent: global.logShipper.config
+  name: eric-log-shipper
+  repository: https://arm.sero.gic.ericsson.se/artifactory/proj-adp-gs-all-helm/
+  tags:
+  - eric-cbrs-dc-common
+  - eric-cbrs-dc-shared
+  - eric-cbrs-dc-deployment-1
+  - eric-cbrs-dc-deployment-2
+  version: 19.5.0+8
+description: A Helm chart for Kubernetes
+name: eric-cbrs-dc-package
+type: application
+version: 0.46.0-4

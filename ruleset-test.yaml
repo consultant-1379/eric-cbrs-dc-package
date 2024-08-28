@@ -1,0 +1,363 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Test Rules"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+properties:
+  - testware-version: 2.17.5
+  - testware-artifact: domain-proxy-sat-tests
+  - nexus-host: https://arm1s11-eiffel004.eiffel.gic.ericsson.se:8443
+  - testware-base-url-snapshot: ${nexus-host}/nexus/content/repositories/snapshots/com/ericsson/oss/testware/${testware-artifact}
+  - testware-base-url-release: ${nexus-host}/nexus/service/local/repositories/releases/content/com/ericsson/oss/testware/${testware-artifact}
+  - test-tag: dcsaPostInstall
+  - test-source-folder: k8s-test
+  - test-target-folder: ${test-source-folder}/target
+  - test-reports-folder: ${test-target-folder}/reports
+  - test-logs-folder: ${test-target-folder}/logs
+  - collect-logs-script-location: https://arm.sero.gic.ericsson.se/artifactory/proj-ADP_GS_Support_FTP-generic-local/collect_ADP_logs
+  - collect-logs-script-name: collect_ADP_logs.sh
+  - collect-logs-since: 2h
+
+import:
+  init: ruleset-init.yaml
+
+env:
+  - USER
+  - SERO_USER (default=${env.USER})
+  - SERO_PASSWORD
+  - CHART_NAME (default=)
+  - ENVIRONMENT_NAME (default=)
+  - TEST_SPEC_TAG (default=\!slow)
+  - TESTWARE_VERSION(default=${testware-version})
+  - PWD
+
+var:
+  - namespace
+  - enm-namespace
+  - enm-host
+  - docker-flags-kube-config
+  - last-test-tag
+  - chart-version
+  - testware-url
+  - temp
+
+rules:
+
+  conditions:
+    - task: has-test-dependencies-deployed
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd: bash -c "helm list --namespace ${var.namespace}-test | grep deployed | awk '{print \$1}' | grep test-dependencies"
+    - task: is-testware-downloaded
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- xmllint --xpath '/*[local-name()="project"]/*[local-name()="version"]/text()' gauge-tests/pom.xml | awk -F- '{ print $1 }' | tee .bob/var.temp
+        - test ${var.temp} == $(echo ${env.TESTWARE_VERSION} | awk -F- '{ print $1 }')
+    - task: is-namespace-exist
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl get namespace ${var.namespace}
+    - task: is-networkpolicy-patched
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl -n ${var.namespace} get networkpolicy eric-cbrs-dc -o yaml  | grep -v creationTimestamp | grep 8200 | grep endPort
+
+  make-target:
+    - task: create-directories
+      cmd:
+        - mkdir -p ${test-target-folder}
+        - mkdir -p ${test-reports-folder}
+        - mkdir -p ${test-logs-folder}
+
+  set-testware-url:
+    - task: set-testware-url
+      condition: NOT conditions:is-testware-downloaded
+      docker-image: adp-helm-kubectl
+      cmd:
+        - rm -f .bob/var.testware-url
+        - echo ${env.TESTWARE_VERSION} | awk -F- '{ print $1 }' | tee .bob/var.temp
+        - curl --silent --fail --head --output /dev/null ${testware-base-url-release}/${env.TESTWARE_VERSION}/${testware-artifact}-${env.TESTWARE_VERSION}-SAT_TESTS.zip
+          && echo ${testware-base-url-release}/${env.TESTWARE_VERSION}/${testware-artifact}-${env.TESTWARE_VERSION}-SAT_TESTS.zip | tee .bob/var.testware-url
+          || echo "Not found in release"
+        - curl --silent --fail --head --output /dev/null ${testware-base-url-snapshot}/${var.temp}-SNAPSHOT/${testware-artifact}-${env.TESTWARE_VERSION}-SAT_TESTS.zip
+          && echo ${testware-base-url-snapshot}/${var.temp}-SNAPSHOT/${testware-artifact}-${env.TESTWARE_VERSION}-SAT_TESTS.zip | tee .bob/var.testware-url
+          || echo "Not found in snapshot"
+        - test ${var.testware-url} != "None"
+
+  download-testware:
+    - rule: set-testware-url
+    - task: download-testware
+      condition: NOT conditions:is-testware-downloaded
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo "kubectl exec gauge-runner -n ${var.namespace}-test --" | tee .bob/var.temp
+        - ${var.temp} rm -rf /gauge-tests
+        - ${var.temp} curl "${var.testware-url}" --output SAT_TESTS.zip
+        - ${var.temp} unzip SAT_TESTS.zip -d /
+        - ${var.temp} sh -c "mv ${testware-artifact}* gauge-tests"
+
+  install-test-dependencies:
+    - task: create-test-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "kubectl get namespaces '${var.namespace}-test' || kubectl create namespace ${var.namespace}-test"
+    - rule: create-test-secrets
+    - task: install-test-dependencies-chart
+      condition: NOT (conditions:has-test-dependencies-deployed)
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -o pipefail -c 'helm upgrade test-dependencies ./k8s-test/dependencies-chart/
+          --install
+          --namespace ${var.namespace}-test
+          --timeout 5m
+          --wait
+          -v 7
+          --debug 2>&1 | tee ${test-logs-folder}/log-test-dependencies-install.log'
+    - task: install-dp-test-server-service-proxy
+      condition: conditions:is-namespace-exist
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "sed 's/<namespace>/${var.namespace}-test/g' ${test-source-folder}/dp-test-server-proxy-service.yaml | tee ${test-target-folder}/dp-test-server-proxy-service.yaml"
+        - kubectl apply -n ${var.namespace} -f ${test-target-folder}/dp-test-server-proxy-service.yaml
+    - task: install-rsyslog-test-server-service-proxy
+      condition: conditions:is-namespace-exist
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "sed 's/<namespace>/${var.namespace}-test/g' ${test-source-folder}/rsyslogserver/rsyslog-test-server-proxy-service.yaml | tee ${test-target-folder}/rsyslog-test-server-proxy-service.yaml"
+        - kubectl apply -n ${var.namespace} -f ${test-target-folder}/rsyslog-test-server-proxy-service.yaml
+    - task: install-dependencies-in-gauge-runner-pod
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c 'echo "${test-source-folder}/scripts/podcli.sh -n ${var.namespace}-test -d gauge-runner -l ${test-logs-folder}/gauge-dep-install.log -t " | tee .bob/var.temp'
+        - ${var.temp} -c "lftp -h || { apt-get --assume-yes update && apt-get --assume-yes upgrade && apt-get --assume-yes install lftp; }"
+        - ${var.temp} -c "sshpass -h || apt-get --assume-yes install sshpass"
+        - ${var.temp} -c "expect -h || apt-get --assume-yes install expect"
+        - ${var.temp} -c "xmllint -h || apt-get --assume-yes install libxml2-utils"
+        - ${var.temp} -c "makepasswd -h || { apt-get --assume-yes install whois && apt-get --assume-yes install makepasswd; }"
+        - ${var.temp} -c "vim -h || apt-get --assume-yes install vim"
+        - ${var.temp} -c "python3-bs4 -h || apt-get --assume-yes install python3-bs4"
+        - ${var.temp} -c "python3-requests -h || apt-get --assume-yes install python3-requests"
+        - ${var.temp} -c "python3-yaml -h || apt-get --assume-yes install python3-yaml"
+        - ${var.temp} -c "mkdir -p /root/.ssh && echo \"StrictHostKeyChecking no\" | tee /root/.ssh/config"
+        - ${var.temp} -c "chmod 700 /root/.ssh && chmod 600 /root/.ssh/config"
+    - rule: download-testware
+
+  uninstall-test-dependencies:
+    - task: uninstall-test-dependencies
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      condition: conditions:has-test-dependencies-deployed
+      cmd:
+        - helm uninstall test-dependencies --namespace ${var.namespace}-test || true
+        - kubectl delete service dp-test-server-service -n ${var.namespace} --ignore-not-found
+        - kubectl delete service rsyslog-test-server-service -n ${var.namespace} --ignore-not-found
+    - rule: delete-test-secrets
+    - task: delete-test-namespace
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete namespace ${var.namespace}-test --ignore-not-found
+
+  create-test-secrets:
+    - rule: delete-test-secrets
+    - task: create-secrets-log-transformer-and-rsyslog-server
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl create secret tls asymmetric-secret-rsyslog -n ${var.namespace}-test --key ./k8s-test/rsyslogserver/certs/rsyslog/rsyslog-log-transformer.key --cert ./k8s-test/rsyslogserver/certs/rsyslog/rsyslog-log-transformer.crt
+        - kubectl create secret generic trusted-secret-log-transformer-rsyslog -n ${var.namespace}-test --from-file=./k8s-test/rsyslogserver/certs/log-transformer/trustedcert
+
+  delete-test-secrets:
+    - task: delete-secrets-log-transformer-and-rsyslog-server
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl delete secret asymmetric-secret-rsyslog -n ${var.namespace}-test --ignore-not-found
+        - kubectl delete secret trusted-secret-log-transformer-rsyslog -n ${var.namespace}-test --ignore-not-found
+
+  patch-networkpolicy-for-sat:
+    - task: prepare-patch
+      condition: NOT conditions:is-networkpolicy-patched
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: |
+        kubectl -n ${var.namespace} get networkpolicy eric-cbrs-dc -o yaml \
+        | sed 's/  ingress:/    - port: 8080\n      endPort: 8200\n      protocol: TCP\n  ingress:/g' \
+        | tee .bob/var.temp
+    - task: apply-patch
+      condition: NOT conditions:is-networkpolicy-patched
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl apply -f .bob/var.temp
+
+  execute-sat-test:
+    - rule: patch-networkpolicy-for-sat
+    - rule: execute-test
+      properties:
+        - test-tag: "smoke"
+
+  execute-integration-test:
+    - rule: patch-networkpolicy-for-sat
+    - rule: execute-test
+      properties:
+        - test-tag: "smoke | dcsaFeatures"
+
+  execute-standalone-test:
+    - rule: execute-test
+      condition: NOT init.conditions:is-enm-enroll
+
+  execute-staging-test:
+    - task: set-test-tag
+      cmd:
+        - echo "dcsaStaging & ${env.TEST_SPEC_TAG}" | tee .bob/var.temp
+        - test "${env.CHART_NAME}" == "" || echo "dcsaStaging & ( ${env.TEST_SPEC_TAG} | ${env.CHART_NAME} )" | tee .bob/var.temp
+    - rule: execute-standalone-test
+      properties:
+        - test-tag: ${var.temp}
+
+  set-enm-vars:
+    - task: set-enm-vars
+      condition: init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl get services -A | grep general-scripting | head -1 | awk '{ print $1 }' | tee .bob/var.enm-namespace
+        - helm list -A | grep eric-enm-pre-deploy-integration | head -1 | awk '{ print $1 }' | tee .bob/var.temp
+        - bash -c "helm get values ${var.temp} -n ${var.enm-namespace} -o json | jq '.global.ingress.enmHost'" | sed 's/\"//g' | tee .bob/var.enm-host
+
+  execute-test:
+    - rule: download-testware
+    - rule: set-enm-vars
+    - task: execute-testware
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - echo "${test-tag}" | awk '{ print $1 }' | tee .bob/var.last-test-tag
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- sh -c "cd gauge-tests &&
+          export STAGING_SAS_URL=https://dp-test-server-service:8306 &&
+          export STAGING_DP_TEST_SERVER_URL=http://dp-test-server-service:8305 &&
+          export STAGING_DCM_ALARM_URL=dp-test-server-service:43341 &&
+          export CI_HOST_NUMBER=${env.ENVIRONMENT_NAME} &&
+          export DEPLOYMENT_TYPE=cEnm &&
+          export ENM_HOST=${var.enm-host} &&
+          export SCRIPTING_HOST=general-scripting.${var.enm-namespace}.svc.cluster.local &&
+          export CBRS_FUNCTION=cbrs-ingress-controller-nx-external.${var.namespace}.svc.cluster.local &&
+          export CBRS_FUNCTION_CMYP=eric-cm-yang-provider-external.${var.namespace}.svc.cluster.local &&
+          mvn clean test --no-transfer-progress -s settings.xml
+            -DspecsDir=specs/domaincoordinator/setupteardown/SetupCEnm.spec,specs/domaincoordinator/test/,specs/domaincoordinator/testtls/,specs/domaincoordinator/staging/,specs/domaincoordinator/setupteardown/Teardown.spec
+            -DtestTag=\"${test-tag}\" &&
+          mvn -s settings.xml org.codehaus.mojo:xml-maven-plugin:1.0.2:transform"
+    - rule: copy-gauge-report-and-log
+
+  generate-gauge-report:
+    - rule: copy-gauge-report-and-log
+    - task: aggregate-gauge-reports
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "${test-source-folder}/scripts/gauge_report_aggregator.py ${test-target-folder}/reports/gauge-reports ${test-target-folder}/reports/html-report || true"
+
+  copy-gauge-report-and-log:
+    - task: copy-gauge-report
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - mkdir -p ${test-target-folder}/reports/gauge-reports
+        - kubectl cp ${var.namespace}-test/gauge-runner:gauge-tests/target/reports ${test-target-folder}/reports/gauge-reports/${var.last-test-tag} --retries=3
+    - task: copy-gauge-log
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - mkdir -p ${test-logs-folder}/${var.last-test-tag}
+        - kubectl cp ${var.namespace}-test/gauge-runner:gauge-tests/logs ${test-logs-folder}/${var.last-test-tag} --retries=3
+
+  collect-k8s-logs:
+    - task: collect-k8s-logs
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c 'mkdir -p ${test-logs-folder}'
+        - bash -c 'kubectl config view > ${test-logs-folder}/kubectl.config'
+        - bash -c 'kubectl get ns > ${test-logs-folder}/kubectl-get-ns.log'
+        - bash -c 'helm ls -Aa > ${test-logs-folder}/helm-ls-Aa.log'
+        - bash -c 'printenv | grep -v CREDENTIALS | grep -v ARTIFACTORY >> ${test-logs-folder}/printenv.log'
+        - bash -c 'kubectl describe pods -n ${var.namespace} > ${test-logs-folder}/kubectl-describe-pods.log'
+    - task: collect-log-files
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - k8s-test/scripts/collect_log_files.sh -n ${var.namespace} -t ${test-logs-folder}
+
+  collect-adp-logs:
+    - task: download-script
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - curl -u ${env.SERO_USER}:${env.SERO_PASSWORD} ${collect-logs-script-location}/${collect-logs-script-name} > ${test-logs-folder}/${collect-logs-script-name}
+        - chmod 777 ${test-logs-folder}/${collect-logs-script-name}
+    - task: execute-script
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - nice -12 bash -c "cd ${test-logs-folder} && ./${collect-logs-script-name} ${var.namespace} ${collect-logs-since}"
+
+  test-logs-present:
+    - rule: collect-adp-logs
+    - rule: collect-k8s-logs
+    - task: test-logs-present
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - k8s-test/scripts/checklogs.sh ${var.namespace}
+
+  test-cbrs-version:
+    - task: check-cbrs-version
+      condition: NOT init.conditions:is-enm-enroll
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - bash -c "python3 ${test-target-folder}/${var.chart-version}/version-info/cbrs_version.py ${var.namespace} > ${test-logs-folder}/cbrs-version.txt"
+        - k8s-test/scripts/check_cbrs_version.sh ${test-logs-folder}/cbrs-version.txt
+        - bash -c "python3 ${test-target-folder}/${var.chart-version}/version-info/cbrs_version.py ${var.namespace} --history > ${test-logs-folder}/cbrs-version-history.txt"
+        - k8s-test/scripts/check_cbrs_version.sh ${test-logs-folder}/cbrs-version-history.txt --history
+
+  update-cert-expire-polling-interval:
+    - task: update-cert-expire-polling-interval
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd: kubectl set env deploy eric-sec-certm CERTIFICATE_EXPIRATION_POLLING_INTERVAL_IN_MINUTES=1 -n ${var.namespace}
+
+  python-unit-test:
+    - task: unit-test-for-k8healthcheck
+      docker-image: adp-helm-kubectl
+      cmd:
+        - python3 -m pip install --user virtualenv && python3 -m venv env;source env/bin/activate &&
+         pip install -r ${env.PWD}/unit-test/tests/requirements-dev.txt &&
+         echo 'Starting the coding standard checking...' &&
+         python3 -m pylint -ry --disable W1514 ${env.PWD}/chart/eric-cbrs-dc-package/scripts/k8shealthcheck/*.py --output=coding_standard_errors_k8shealthcheck.txt &&
+         echo 'File coding_standard_errors_k8shealthcheck.txt are created...' &&
+         if [ -d coverage_result_k8shealthcheck ]; then rm -rf coverage_result_k8shealthcheck; fi
+        - echo 'Starting the k8shealthcheck coverage checking...'
+        - python3 -m coverage run -m unittest discover ${env.PWD}/unit-test/tests/k8shealthcheck/
+        - python3 -m coverage html -d coverage_result_k8shealthcheck ${env.PWD}/unit-test/tests/k8shealthcheck/*.py
+        - python3 -m coverage report --fail-under=95 ${env.PWD}/unit-test/tests/k8shealthcheck/*.py
+        - echo 'Coverage report was created for k8shealthcheck'
+
+  dev-test:
+    - rule: install-test-dependencies
+    - rule: execute-staging-test
+    - rule: generate-gauge-report
+    - rule: uninstall-test-dependencies

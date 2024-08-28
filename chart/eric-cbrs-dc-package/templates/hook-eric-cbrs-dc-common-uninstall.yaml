@@ -1,0 +1,130 @@
+{{ if index .Values "tags" "eric-cbrs-dc-common" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  annotations:
+    {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets", "persistentvolumeclaims", "serviceaccounts"]
+    verbs: ["list", "delete"]
+  - apiGroups: ["siptls.sec.ericsson.com"]
+    resources: ["internalcertificates"]
+    verbs: ["list", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["list", "delete"]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  annotations:
+    {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+data:
+  eric-cbrs-dc-common-uninstall.py: |-
+    {{ tpl (.Files.Get "scripts/eric-cbrs-dc-common-uninstall.py") . | nindent 4}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  annotations:
+    {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+      annotations:
+        {{- include "eric-cbrs-dc-package.hook-annotations" . | nindent 8 }}
+      labels:
+        app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+        helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+      containers:
+          - name: executor
+            image: {{ template "eric-cbrs-dc-package.hook.image" . }}
+            imagePullPolicy: {{ template "eric-cbrs-dc-package.hook.imagePullPolicy" . }}
+            resources:
+              requests:
+                memory: 512Mi
+                cpu: 250m
+              limits:
+                memory: 512Mi
+                cpu: 250m
+            command:
+              - /usr/bin/python3
+              - /scripts/eric-cbrs-dc-common-uninstall.py
+              - -r {{ .Release.Name }}
+              - -s {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+              {{- if .Values.uninstall.keepRoles }}
+              - --keep-roles
+              {{- end }}
+            volumeMounts:
+              - name: scripts
+                mountPath: /scripts
+      {{- if .Values.global.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.pullSecret }}
+      {{- end }}
+      volumes:
+        - name: scripts
+          configMap:
+            name: {{ template "eric-cbrs-dc-package.name" . }}-uninstall
+  {{- end }}

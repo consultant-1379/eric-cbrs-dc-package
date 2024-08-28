@@ -1,0 +1,12 @@
+nmapConfig:
+  services:
+    - name: "eric-cbrs-dc-package"
+      protocol:
+        - "tcp"
+      additionalParams:
+        - "-n"
+        - "-p-"
+        - "-sV"
+        - "--reason"
+        - "--webxml"
+  reportDir: "nmap_reports"

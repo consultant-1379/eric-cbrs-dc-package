@@ -1,0 +1,190 @@
+#!/usr/bin/env groovy
+
+def defaultBobImage = 'armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob.2.0:latest'
+def bob = new BobCommand()
+        .bobImage(defaultBobImage)
+        .envVars([
+                HOME                : '${HOME}',
+                CHART_NAME          : '${CHART_NAME}',
+                CHART_REPO          : '${CHART_REPO}',
+                CHART_VERSION       : '${CHART_VERSION}',
+                PWD                 : '${PWD}',
+                HELM_REPO_TOKEN     : '${HELM_REPO_TOKEN}',
+                KUBECONFIG          : '${KUBECONFIG}',
+                USER                : '${USER}',
+                SELI_USER           : '${SELI_USER}',
+                SELI_PASSWORD       : '${SELI_PASSWORD}',
+                SERO_USER           : '${SERO_USER}',
+                SERO_PASSWORD       : '${SERO_PASSWORD}',
+                RELEASE             : '${RELEASE}',
+                GERRIT_USERNAME     : '${GERRIT_USERNAME}',
+                GERRIT_PASSWORD     : '${GERRIT_PASSWORD}',
+                JENKINS_URL         : '${JENKINS_URL}',
+                GERRIT_REFSPEC      : '${GERRIT_REFSPEC}',
+                ARM_API_TOKEN       : '${ARM_API_TOKEN}',
+                ENVIRONMENT_NAME    : '${ENVIRONMENT_NAME}',
+                NAMESPACE           : '${NAMESPACE}',
+                INT_CHART_VERSION   : '${INT_CHART_VERSION}',
+                ENM_ENROLL          : '${ENM_ENROLL}',
+                REDUCED_FOOTPRINT   : '${REDUCED_FOOTPRINT}',
+                CSAR_VERSION        : '${CSAR_VERSION}',
+                TESTWARE_VERSION    : '${TESTWARE_VERSION}',
+                TEST_SPEC_TAG       : '${TEST_SPEC_TAG}',
+                INTEGRATION_VALUES  : '${INTEGRATION_VALUES}',
+                CERTM_CONFIG_CONTENT: '${CERTM_CONFIG_CONTENT}'
+        ])
+        .needDockerSocket(true)
+        .toString()
+pipeline {
+    agent {
+        node {
+            label 'GE7_Docker'
+        }
+    }
+    options {
+        lock(params.ENVIRONMENT_NAME + "-" + params.NAMESPACE + "-deployment-resource") // Prevent parallel builds against the same namespace on the same deployment ID
+        //lock(label: 'kaas-va', variable: 'RESOURCE_NAME', quantity: 1)
+    }
+    parameters {
+        string(name: 'BUILD_DESCRIPTION', description: '(Optional) For manually triggered builds it is recommended to include TORF number.')
+        string(name: 'GERRIT_REFSPEC', description: '(Optional) Gerrit Refspect e.g.: refs/changes/87/4641487/1')
+        choice(name: 'ENVIRONMENT_NAME', choices: ['None', 'c12a007', 'c13a011', 'ieatenmc15a017', 'c15a019', 'ieatenmc16a011', 'ieatenmc16a022', 'c16a040', 'c16b024', 'cnisenm116', 'cnisenm124', 'cnisenm129', 'cnisenm130', 'cnisenm170', 'cnisenm183', 'cnisenm184', 'ieatenmc11a030'], description: 'Provide environment name')
+        string(name: 'NAMESPACE', description: '(Optional) Provide namespace for upgrade')
+        string(name: 'INT_CHART_VERSION', description: '(Optional) Leave empty for latest drop version. Chart version e.g.: 1.0.0-1, drop, release, build')
+        choice(name: 'REDUCED_FOOTPRINT', choices: ['false', 'true'], description: 'Reduced footprint deployment')
+        string(name: 'TESTWARE_VERSION', description: '(Optional) Testware version version e.g.: 2.15.9, 2.15.9-20240130.163026-3')
+        string(name: 'TEST_SPEC_TAG', description: '(Optional) Tests matching the specified tag will be executed e.g.: daily)')
+    }
+    environment {
+        SELI = credentials('SELI_Artifactory')
+        SERO = credentials('SERO_Artifactory')
+        SERO_USR = "${SERO_USR}"
+        GERRIT = credentials('Gerrit HTTP')
+
+        //KUBECONFIG = "${WORKSPACE}/.kube/config"
+    }
+    stages {
+        stage('Credentials') {
+            //environment {
+            //    K8S_CONFIG_FILE_ID = sh(script: "echo \${RESOURCE_NAME} | cut -d'_' -f1", returnStdout: true).trim()
+            //}
+            steps {
+                //configFileProvider([configFile(fileId: "${K8S_CONFIG_FILE_ID}", targetLocation: "${env.KUBECONFIG}")]) {}
+                withCredentials([file(credentialsId: 'cbrsciadm_docker_config', variable: 'dockerConfig')]) {
+                    sh "cp ${dockerConfig} ${HOME}/.docker/config.json"
+                }
+            }
+        }
+        stage('Init') {
+            steps {
+                script {
+                    currentBuild.description = ''
+                    if (params.BUILD_DESCRIPTION != null && params.BUILD_DESCRIPTION != "") {
+                        currentBuild.description += params.BUILD_DESCRIPTION + '<br>'
+                    }
+                    if (params.ENVIRONMENT_NAME != null && params.ENVIRONMENT_NAME != "") {
+                        currentBuild.description += 'environment: ' + params.ENVIRONMENT_NAME + '<br>'
+                    }
+                    if (params.NAMESPACE != null && params.NAMESPACE != "") {
+                        currentBuild.description += 'namespace: ' + params.NAMESPACE + '<br>'
+                    }
+                    if (params.INT_CHART_VERSION != null && params.INT_CHART_VERSION != "") {
+                        currentBuild.description += 'eric-cbrs-dc-package: ' + params.INT_CHART_VERSION + '<br>'
+                    }
+                    if (params.TESTWARE_VERSION != null && params.TESTWARE_VERSION != "") {
+                        currentBuild.description += 'domain-proxy-sat-tests: ' + params.TESTWARE_VERSION + '<br>'
+                    }
+                    if (params.GERRIT_REFSPEC != null && params.GERRIT_REFSPEC != "") {
+                        sh "git fetch ${GIT_URL} ${GERRIT_REFSPEC} && git checkout FETCH_HEAD"
+                        gtokens = params.GERRIT_REFSPEC.split("/")
+                        currentBuild.description += '<a href="https://gerrit-gamma.gic.ericsson.se/#/c/' + gtokens[3] + '/' + gtokens[4] + '">gerrit change: ' + gtokens[3] + ',' + gtokens[4] + '</a>'
+                    }
+                }
+                withCredentials([
+                        usernamePassword(credentialsId: 'Gerrit HTTP', usernameVariable: 'GERRIT_USERNAME', passwordVariable: 'GERRIT_PASSWORD'),
+                        usernamePassword(credentialsId: 'SELI_Artifactory', usernameVariable: 'SELI_USER', passwordVariable: 'SELI_PASSWORD'),
+                        usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD'),
+                        string(credentialsId: 'CBRSCIADM', variable: 'ARM_API_TOKEN')]) {
+                    sh "${bob} init"
+                }
+            }
+        }
+        stage('Install') {
+            steps {
+                sh "${bob} install-baseline"
+            }
+        }
+        stage('Upgrade') {
+            steps {
+                sh "${bob} upgrade"
+            }
+        }
+        stage('Test') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD')]) {
+                    sh "${bob} test"
+                }
+            }
+        }
+        stage('Rollback') {
+            steps {
+                sh "${bob} rollback"
+            }
+        }
+        stage('Uninstall') {
+            steps {
+                sh "${bob} uninstall"
+            }
+        }
+    }
+    post {
+        always {
+            withCredentials([usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD')]) {
+                sh "${bob} report || true"
+            }
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'k8s-test/target/reports/**/*.*'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'k8s-test/target/logs/**/*.*'
+            publishHTML target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'k8s-test/target/reports/html-report/', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: 'HTML Report']
+            sh "${bob} clean || true"
+        }
+    }
+}
+// More about @Builder: http://mrhaki.blogspot.com/2014/05/groovy-goodness-use-builder-ast.html
+import groovy.transform.builder.Builder
+import groovy.transform.builder.SimpleStrategy
+
+@Builder(builderStrategy = SimpleStrategy, prefix = '')
+class BobCommand {
+
+    def bobImage = 'bob.2.0:latest'
+    def envVars = [:]
+
+    def needDockerSocket = false
+
+    String toString() {
+        def env = envVars
+                .collect({ entry -> "-e ${entry.key}=\"${entry.value}\"" })
+                .join(' ')
+
+        def cmd = """\
+            |docker run
+            |--init
+            |--rm
+            |--workdir \${PWD}
+            |--user \$(id -u):\$(id -g)
+            |-v \${PWD}:\${PWD}
+            |-v /etc/group:/etc/group:ro
+            |-v /etc/passwd:/etc/passwd:ro
+            |-v \${HOME}:\${HOME}
+            |${needDockerSocket ? '-v /var/run/docker.sock:/var/run/docker.sock' : ''}
+            |${env}
+            |\$(for group in \$(id -G); do printf ' --group-add %s' "\$group"; done)
+            |--group-add \$(stat -c '%g' /var/run/docker.sock)
+            |${bobImage}
+            |"""
+        return cmd
+                .stripMargin()           // remove indentation
+                .replace('\n', ' ')      // join lines
+                .replaceAll(/[ ]+/, ' ') // replace multiple spaces by one
+    }
+}

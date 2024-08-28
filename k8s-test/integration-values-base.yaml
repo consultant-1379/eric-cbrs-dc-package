@@ -1,0 +1,69 @@
+global:
+  timezone: UTC
+  pullSecret: armdocker
+
+cmyp-brm:
+  user: brobrm
+  encryptedPass: $1$OPAHcNsn$QTzz7pVY30CXQ0Q5esdOR1
+
+eric-ran-log-service:
+  eric-log-transformer:
+    egress:
+      syslog:
+        enabled: <enable-rsyslog>
+  eric-data-search-engine:
+    persistence:
+      backup:
+        persistentVolumeClaim:
+          storageClassName: "<storage-class-name>"
+
+ingressInfo: &ingressIp
+  loadBalancerIP: <ingress-ip>
+
+eric-cbrs-dc-1:
+  imageCredentials:
+    mainImage:
+      registry:
+        imagePullPolicy: Always
+  service:
+    dcm:
+      truststore: ""
+      keystore: ""
+
+eric-cbrs-dc-2:
+  imageCredentials:
+    mainImage:
+      registry:
+        imagePullPolicy: Always
+  service:
+    dcm:
+      truststore: ""
+      keystore: ""
+
+eric-cbrs-dc:
+  CBRS_LOAD_BALANCER: *ingressIp
+  ingress:
+    ingressClass: <namespace>-ingress-nginx
+
+eric-oss-ingress-controller-nx:
+  rbac:
+    create: false
+  ingressClassResource:
+    enabled: false
+    ingressClass: <namespace>-ingress-nginx
+  ingressClass: <namespace>-ingress-nginx
+
+eric-cnom-server:
+  service:
+    endpoints:
+      api:
+        tls:
+          verifyClientCertificate: optional
+  ingress:
+    ingressClass: <namespace>-ingress-nginx
+
+eric-ran-cm-service:
+  eric-cm-yang-provider:
+    ssh:
+      cli:
+        enabled: true

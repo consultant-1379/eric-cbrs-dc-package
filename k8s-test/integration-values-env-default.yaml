@@ -1,0 +1,22 @@
+eric-ran-log-service:
+  eric-log-transformer:
+    egress:
+      syslog:
+        inclusions: [ ]
+        exclusions: [ ]
+        remoteHosts:
+          - host: rsyslog-test-server-service
+            port: 514
+            protocol: TCP
+
+eric-cbrs-dc:
+  DCM_HOST: dp-test-server-service
+  networkPolicy:
+    sasPort: 8306
+
+eric-ran-pm-service:
+  eric-pm-server:
+    resources:
+      eric-pm-server:
+        requests:
+          memory: "4Gi"

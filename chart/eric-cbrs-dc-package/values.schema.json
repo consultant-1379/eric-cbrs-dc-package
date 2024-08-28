@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "tags": {
+      "description": "Tags used to determine what part of the chart to install. At least one tag MUST be set to true.",
+      "additionalItems": false,
+      "properties": {
+        "eric-cbrs-dc-common": {
+          "description": "Tag for CBRS common components",
+          "type": "boolean"
+        },
+        "eric-cbrs-dc-shared": {
+          "description": "Tag for CBRS application shared components",
+          "type": "boolean"
+        },
+        "eric-cbrs-dc-deployment-1": {
+          "description": "Tag for 1st instance of CBRS application deployment components",
+          "type": "boolean"
+        },
+        "eric-cbrs-dc-deployment-2": {
+          "description": "Tag for 2nd instance of CBRS application deployment components",
+          "type": "boolean"
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "eric-cbrs-dc-common": { "enum": [true] }
+          }
+        },
+        {
+          "properties": {
+            "eric-cbrs-dc-shared": { "enum": [true] }
+          }
+        },
+        {
+          "properties": {
+            "eric-cbrs-dc-deployment-1": { "enum": [true] }
+          }
+        },
+        {
+          "properties": {
+            "eric-cbrs-dc-deployment-2": { "enum": [true] }
+          }
+        }
+      ]
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "description": "Sets the timezone to be used for timestamps in persistently stored logs.",
+          "default": "UTC"
+        },
+        "registry": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Sets URL of the private docker registry for storing the Docker images retrieved from the CSAR package."
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      },
+      "required": [
+        "timezone"
+      ]
+    },
+    "cmyp-brm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user": {
+          "type": "string",
+          "description": "Sets the CM Yang Provider BRM username"
+        },
+        "encryptedPass": {
+          "type": "string",
+          "description": "Sets the CM Yang Provider BRM password"
+        }
+      },
+      "required": [
+        "user",
+        "encryptedPass"
+      ]
+    },
+    "eric-ran-log-service": {
+      "type": "object",
+      "properties": {
+        "eric-data-search-engine": {
+          "type": "object",
+          "properties": {
+            "persistence": {
+              "type": "object",
+              "properties": {
+                "backup": {
+                  "type": "object",
+                  "properties": {
+                    "persistentVolumeClaim": {
+                      "type": "object",
+                      "properties": {
+                        "storageClassName": {
+                          "type": "string",
+                          "description": "Sets the RWX storage class name"
+                        }
+                      },
+                      "required": [
+                        "storageClassName"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "eric-cnom-server": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "object",
+          "properties": {
+            "endpoints": {
+              "type": "object",
+              "properties": {
+                "api": {
+                  "type": "object",
+                  "properties": {
+                    "tls": {
+                      "type": "object",
+                      "properties": {
+                        "verifyClientCertificate": {
+                          "type": "string",
+                          "description": "Sets whether to use TLS client authentication for CNOM API.",
+                          "default": "required"
+                        }
+                      },
+                      "required": [
+                        "verifyClientCertificate"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

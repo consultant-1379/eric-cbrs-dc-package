@@ -1,0 +1,520 @@
+{
+   "namespace": "monitoring",
+   "dashboards": [
+      {
+         "_id": "DC_resource_dashboard",
+         "title": "DC Resources",
+         "order": 2,
+         "apps": [
+            "statusOverview"
+         ],
+         "tiles": [
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_heap_committed"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_heap_committed"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_heap_used"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_heap_used"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_non_heap_committed"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_non_heap_committed"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_non_heap_used"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_non_heap_used"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_old_dc_time"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_old_dc_time"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_young_dc_time"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_young_dc_time"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_nio_direct_count"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_nio_direct_count"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_nio_mapped_count"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_nio_mapped_count"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_openfile_descriptor_count"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_openfile_descriptor_count"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_process_cpu_load"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_process_cpu_load"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_process_cpu_time"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_process_cpu_time"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_thread_count"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_thread_count"
+            },
+            {
+               "xSize": 3,
+               "widget": "dc_resource_kpi_peak_count"
+            },
+            {
+               "xSize": 7,
+               "widget": "dc_resource_timeline_peak_count"
+            },
+            {
+               "xSize": 10,
+               "ySize": 2,
+               "widget": "builtin:pod_table"
+            }
+         ]
+      }
+   ],
+   "widgets": [
+      {
+         "_id": "dc_resource_kpi_heap_committed",
+         "widgetType": "kpi",
+         "title": "Heap Memory Usage Committed",
+         "sources": [
+            {
+               "source": "dc_resource_heap_committed"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_heap_committed",
+         "widgetType": "timeline",
+         "title": "Heap Memory Usage Committed",
+         "dataFormat": "1",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_heap_committed"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_heap_used",
+         "widgetType": "kpi",
+         "title": "Heap Memory Usage Used",
+         "sources": [
+            {
+               "source": "dc_resource_heap_used"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_heap_used",
+         "widgetType": "timeline",
+         "title": "Heap Memory Usage Used",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_heap_used"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_non_heap_committed",
+         "widgetType": "kpi",
+         "title": "Non Heap Memory Usage Committed",
+         "sources": [
+            {
+               "source": "dc_resource_non_heap_committed"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_non_heap_committed",
+         "widgetType": "timeline",
+         "title": "Non Heap Memory Usage Committed",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_non_heap_committed"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_non_heap_used",
+         "widgetType": "kpi",
+         "title": "Non Heap Memory Usage Used",
+         "sources": [
+            {
+               "source": "dc_resource_non_heap_used"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_non_heap_used",
+         "widgetType": "timeline",
+         "title": "Non Heap Memory Usage Used",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_non_heap_used"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_old_dc_time",
+         "widgetType": "kpi",
+         "title": "Old GC Time",
+         "sources": [
+            {
+               "source": "dc_resource_old_gc_time"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_old_dc_time",
+         "widgetType": "timeline",
+         "title": "Old GC Time",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_old_gc_time"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_young_dc_time",
+         "widgetType": "kpi",
+         "title": "Young GC Time",
+         "sources": [
+            {
+               "source": "dc_resource_young_gc_time"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_young_dc_time",
+         "widgetType": "timeline",
+         "title": "Young GC Time",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_young_gc_time"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_nio_direct_count",
+         "widgetType": "kpi",
+         "title": "NIO Memory Direct Count",
+         "sources": [
+            {
+               "source": "dc_resource_nio_memory_direct_count"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_nio_direct_count",
+         "widgetType": "timeline",
+         "title": "NIO Memory Direct Count",
+         "dataFormat": "1",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_nio_memory_direct_count"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_nio_mapped_count",
+         "widgetType": "kpi",
+         "title": "NIO Memory Mapped Count",
+         "sources": [
+            {
+               "source": "dc_resource_nio_memory_mapped_count"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_nio_mapped_count",
+         "widgetType": "timeline",
+         "title": "NIO Memory Mapped Count",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_nio_memory_mapped_count"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_openfile_descriptor_count",
+         "widgetType": "kpi",
+         "title": "Openfile Descriptor Count",
+         "sources": [
+            {
+               "source": "dc_resource_open_file_descriptor_count"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_openfile_descriptor_count",
+         "widgetType": "timeline",
+         "title": "Openfile Descriptor Count",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_open_file_descriptor_count"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_process_cpu_load",
+         "widgetType": "kpi",
+         "title": "Process CPU Load",
+         "sources": [
+            {
+               "source": "dc_resource_process_cpu_load"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_process_cpu_load",
+         "widgetType": "timeline",
+         "title": "Process CPU Load",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_process_cpu_load"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_process_cpu_time",
+         "widgetType": "kpi",
+         "title": "Process CPU Time",
+         "sources": [
+            {
+               "source": "dc_resource_process_cpu_time"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_process_cpu_time",
+         "widgetType": "timeline",
+         "title": "Process CPU Time",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_process_cpu_time"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_thread_count",
+         "widgetType": "kpi",
+         "title": "Current Thread Count",
+         "sources": [
+            {
+               "source": "dc_resource_thread_count"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_thread_count",
+         "widgetType": "timeline",
+         "title": "Current Thread Count",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_thread_count"
+            }
+         ]
+      },
+      {
+         "_id": "dc_resource_kpi_peak_count",
+         "widgetType": "kpi",
+         "title": "Peak Thread Count",
+         "sources": [
+            {
+               "source": "dc_resource_peak_thread_count"
+            }
+         ],
+         "maximizable": true
+      },
+      {
+         "_id": "dc_resource_timeline_peak_count",
+         "widgetType": "timeline",
+         "title": "Peak Thread Count",
+         "unit": "Count",
+         "sources": [
+            {
+               "source": "dc_resource_peak_thread_count"
+            }
+         ]
+      }
+   ],
+   "sources": [
+      {
+         "_id": "dc_resource_heap_committed",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvm_dh_memory_nm_HeapMemoryUsage_dh_committed)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_heap_used",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvm_dh_memory_nm_HeapMemoryUsage_dh_used)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_non_heap_committed",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvm_dh_memory_nm_NonHeapMemoryUsage_dh_committed)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_non_heap_used",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvm_dh_memory_nm_NonHeapMemoryUsage_dh_used)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_old_gc_time",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvmgc_nm_old_dh_time)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_young_gc_time",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_jvmgc_nm_young_dh_time)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_nio_memory_direct_count",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_nio_dh_memory_dh_direct_nm_Count)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_nio_memory_mapped_count",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_nio_dh_memory_dh_mapped_nm_Count)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_open_file_descriptor_count",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_os_nm_OpenFileDescriptorCount)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_process_cpu_load",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_os_nm_ProcessCpuLoad)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_process_cpu_time",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_os_nm_ProcessCpuTime)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_thread_count",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_threads_nm_ThreadCount)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      },
+      {
+         "_id": "dc_resource_peak_thread_count",
+         "sourceType": "prometheus",
+         "query": "sum(jboss_dh_threads_nm_PeakThreadCount)  by (instance)",
+         "label": "eric-cbrs-dc instance: ",
+         "splitByLabelName": "instance",
+         "labelOrder": "prometheusLabelLast"
+      }
+   ]
+}

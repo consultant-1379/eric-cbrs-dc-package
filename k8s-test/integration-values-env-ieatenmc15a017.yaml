@@ -1,0 +1,29 @@
+global:
+  metrics:
+    nodeexporter:
+      namespace: enm15a17
+
+eric-oss-ddc:
+  autoUpload:
+    deltaInterval: 60
+    enabled: true
+    ddpid: lmi_ccd15a017_cbrs_15a17
+    account: upload@ddpenm6.athtem.eei.ericsson.se
+    password: _!upLoad
+
+ingressInfo: &ingressIp
+  loadBalancerIP: 10.150.139.48
+
+eric-cbrs-dc:
+  DCM_HOST: 10.150.138.78
+  CBRS_LOAD_BALANCER: *ingressIp
+  networkPolicy:
+    sasPort: 4364
+
+eric-ran-cm-service:
+  eric-cm-yang-provider:
+    service:
+      loadBalancerIP: 10.150.139.49
+
+eric-oss-ingress-controller-nx:
+  service: *ingressIp

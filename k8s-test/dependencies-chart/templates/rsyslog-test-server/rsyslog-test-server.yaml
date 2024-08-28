@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.rsyslog_test_server.name }}
+  labels:
+    app: {{ .Values.rsyslog_test_server.name }}-app
+spec:
+  containers:
+    - name: {{ .Values.rsyslog_test_server.name }}
+      image: {{ .Values.rsyslog_test_server.image}}
+      imagePullPolicy: Always
+      ports:
+        - containerPort: {{ .Values.rsyslog_test_server.port }}
+          name: http-tcp-port
+          protocol: TCP
+      volumeMounts:
+        - name: rsyslog-output
+          mountPath: "/var/log/remote/"
+        - name: rsyslog-conf
+          mountPath: "/etc/rsyslog.conf"
+          subPath: "rsyslog.conf"
+        - name: asymmetric-key
+          mountPath: "/run/secrets/syslogOutput-certs/"
+        - name: trusted-key
+          mountPath: "/run/secrets/syslogOutput-cacerts/"
+  volumes:
+    - name: rsyslog-output
+      persistentVolumeClaim:
+        claimName: rsyslog-pvc
+    - name: rsyslog-conf
+      configMap:
+        name: rsyslog-config
+    - name: asymmetric-key
+      secret:
+        secretName: asymmetric-secret-rsyslog
+    - name: trusted-key
+      secret:
+        secretName: trusted-secret-log-transformer-rsyslog

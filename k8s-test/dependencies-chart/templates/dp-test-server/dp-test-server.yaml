@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dp-test-server
+  labels:
+    app: dp-test-server-app
+spec:
+  containers:
+    - name: {{ .Values.dp_test_server.name }}
+      image: {{ .Values.dp_test_server.image }}
+      imagePullPolicy: Always
+      ports:
+        - containerPort: 8305
+          name: http-sas-port
+          protocol: TCP
+        - containerPort: 8306
+          name: https-sas-port
+          protocol: TCP
+        - containerPort: 6513
+          name: baseband-port
+          protocol: TCP
+        - containerPort: 43340
+          name: http-alarm-port
+          protocol: TCP
+        - containerPort: 43341
+          name: https-alrm-port
+          protocol: TCP

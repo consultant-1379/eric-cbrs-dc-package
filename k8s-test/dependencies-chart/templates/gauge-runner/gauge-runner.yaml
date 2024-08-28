@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gauge-runner
+  labels:
+    app: gauge-runner-app
+spec:
+  containers:
+    - name: gauge-runner
+      image: armdocker.rnd.ericsson.se/proj_oss/test/gauge-java-runner-1-5-1:latest
+      command: [ "sh", "-c", "--" ]
+      args: [ "while true; do sleep 10; done;" ]
+      ports:
+        - containerPort: 5100

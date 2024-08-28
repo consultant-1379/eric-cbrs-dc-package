@@ -1,0 +1,94 @@
+modelVersion: 2.0
+
+description: "CBRS Standalone Domain Proxy Service"
+
+# See image catalog: https://confluence.lmera.ericsson.se/display/ACD/ADP+CICD+Docker+Image+Catalog
+docker-images:
+  - adp-int-helm: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-int-helm-chart-auto:latest
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+  - adp-release-auto: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-adp-release-auto:latest
+
+
+properties:
+  - git-repo-url: https://gerrit-gamma.gic.ericsson.se/OSS/ENM-Parent/SQ-Gate/com.ericsson.oss.services.domainproxy/eric-cbrs-dc-package
+  - git-branch: master
+  - chart-path: chart/eric-cbrs-dc-package
+  - helm-chart-repo-server-path: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc
+  - helm-repo-internal: ${helm-chart-repo-server-path}-ci-internal-helm
+  - helm-repo-drop: ${helm-chart-repo-server-path}-drop-helm
+  - helm-repo-release: ${helm-chart-repo-server-path}-released-helm
+
+env:
+  - HOME
+  - PWD
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - SELI_USER
+  - CBRS_SSH
+  - SELI_PASSWORD
+  - SERO_USER
+  - SERO_PASSWORD
+  - CHART_NAME (default = eric-cbrs-dc-package)
+  - CHART_REPO (default = arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-drop-helm/eric-cbrs-dc-package)
+  - DOCKER_CONFIG (default=${env.HOME}/.docker/config.json)
+  - SPRINT_END
+  - R_STATE
+  - SPRINT_TAG
+  # Credentials
+  - ARM_API_TOKEN
+var:
+  - docker-config-basepath
+  - namespace
+  - chart-version
+  - chart-version-point-fix
+
+# Rules to execute
+rules:
+
+  update-repositories-yaml:
+    - task: update-repositories-yaml
+      # sed separator is '#' as SELI_PASSWORD,SELI_USER,SERO_USER,SERO_PASSWORD string includes '/'
+      cmd:
+        - "sed -i 's#SERO_HELM_USER#${env.SERO_USER}#g' repositories-example.yaml"
+        - "sed -i 's#SERO_HELM_PASS#${env.SERO_PASSWORD}#g' repositories-example.yaml"
+        - "sed -i 's#SELI_HELM_USER#${env.SELI_USER}#g' repositories-example.yaml"
+        - "sed -i 's#SELI_HELM_PASS#${env.SELI_PASSWORD}#g' repositories-example.yaml"
+
+  package-helm-chart:
+    - rule: update-repositories-yaml
+    - task: prepare-helm-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - "--env GERRIT_USERNAME"
+        - "--env GERRIT_PASSWORD"
+        - "--env GIT_BRANCH=${env.SPRINT_END}"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/repositories-example.yaml"
+        - "--env ARM_API_TOKEN"
+        - "--env GIT_REPO_URL=${git-repo-url}"
+        - "--env CHART_PATH=${chart-path}"
+      cmd:
+        - next-version --chart-path ${env.PWD}/chart/eric-cbrs-dc-package -r -t MINOR -o .bob/var.chart-version
+        - ihc-package -f ${env.PWD}/chart/eric-cbrs-dc-package -o .bob -w .bob/eric-cbrs-dc-package_tmp -c ${env.PWD}/repositories-example.yaml -v ${var.chart-version} --replace DEFAULT_PACKAGE_VERSION=${var.chart-version} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG}
+    - task: git-tag
+      cmd:
+        - git config user.name "CBRSCIADM"
+        - git config user.email "cbrsciadm-no-reply@nomail.com"
+        - git config user.password "${env.CBRS_SSH}"
+        - git add ${env.PWD}/chart/eric-cbrs-dc-package/Chart.yaml
+        - git commit -m "Release ${var.chart-version}"
+        - git tag ${var.chart-version}
+        - git push origin ${var.chart-version}
+        - git push origin HEAD:master
+        - git checkout -b ${env.SPRINT_END}
+        - git push origin ${env.SPRINT_END}:${env.SPRINT_END}
+    - task: upload-helm-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/repositories-example.yaml"
+        - "--env ARM_API_TOKEN"
+      cmd:
+        - arm-upload -f .bob/eric-cbrs-dc-package-${var.chart-version}.tgz -u https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-released-helm/eric-cbrs-dc-package/ -t ${env.ARM_API_TOKEN}
+    - task: ihc-generate-artifacts
+      docker-image: adp-int-helm
+      cmd:
+        - ihc-generate-artifacts --int-chart-name eric-cbrs-dc-package --int-chart-version ${var.chart-version} --int-chart-repo ${helm-repo-release}

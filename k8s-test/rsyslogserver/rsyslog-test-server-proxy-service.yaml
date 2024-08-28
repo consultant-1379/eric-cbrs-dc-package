@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rsyslog-test-server-service
+spec:
+  type: ExternalName
+  externalName: rsyslog-test-server-service.<namespace>.svc.cluster.local
+  ports:
+    - name: http-tcp-port
+      port: 514
+      protocol: TCP
+      targetPort: 514

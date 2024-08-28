@@ -1,0 +1,37 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Sending logs to external syslog server."
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+var:
+  - namespace
+  - docker-flags-kube-config
+  - original-file-size
+  - current-file-size
+
+import:
+  test: ruleset-test.yaml
+
+rules:
+  execute-syslog-test:
+    - task: test-syslog-file-exist
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd:
+        - kubectl exec rsyslog-test-server -n ${var.namespace}-test -- sh -c
+          "test -f /var/log/remote/syslog.log &&
+          echo \"Passed - \"$(date -u)\" - Syslog file (syslog.log) is created in external syslog server (rsyslog-test-server pod) under /var/log/remote\" ||
+          echo \"Failed - \"$(date -u)\" - Syslog file (syslog.log) is not created in external syslog server (rsyslog-test-server pod) under /var/log/remote\"" > ${test.test-reports-folder}/syslog-test.log
+        - grep "is created" ${test.test-reports-folder}/syslog-test.log
+    - task: test-syslog-file-grows
+      docker-image: adp-helm-kubectl
+      docker-flags: *docker_flags_kube_config
+      cmd:
+        - kubectl exec rsyslog-test-server -n ${var.namespace}-test -- sh -c "stat -c %s \"/var/log/remote/syslog.log\"" | tee .bob/var.original-file-size
+        - sleep 60
+        - kubectl exec rsyslog-test-server -n ${var.namespace}-test -- sh -c "stat -c %s \"/var/log/remote/syslog.log\"" | tee .bob/var.current-file-size
+        - bash -c 'test ${var.current-file-size} -gt ${var.original-file-size} && echo "Passed - "$(date -u)" - Syslog file is updated in external syslog server" || echo "Failed - "$(date -u)" - Syslog file is not updated in external syslog server"' >> ${test.test-reports-folder}/syslog-test.log
+        - grep "is updated" ${test.test-reports-folder}/syslog-test.log

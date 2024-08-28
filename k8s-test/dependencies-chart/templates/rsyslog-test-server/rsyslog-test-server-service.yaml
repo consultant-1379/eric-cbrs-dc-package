@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.rsyslog_test_server.name }}-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-tcp-port
+      port: {{ .Values.rsyslog_test_server.port }}
+      protocol: TCP
+      targetPort: {{ .Values.rsyslog_test_server.port }}
+  selector:
+    app: {{ .Values.rsyslog_test_server.name }}-app

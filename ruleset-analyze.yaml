@@ -1,0 +1,31 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Analyze Deployment"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+env:
+  - SERO_USER (default=${env.USER})
+  - SERO_PASSWORD
+
+var:
+  - namespace
+  - chart-version
+  - docker-flags-kube-config
+
+import:
+  test: ruleset-test.yaml
+
+rules:
+  helm-chart-analyzer:
+    - task: helm-chart-analyzer
+      docker-image: adp-helm-kubectl
+      docker-flags: &docker_flags_kube_config
+        - ${var.docker-flags-kube-config}
+      cmd:
+        - kubectl cp k8s-test/scripts/helm-chart-analyzer.py ${var.namespace}-test/gauge-runner:helm-chart-analyzer.py
+        - kubectl exec gauge-runner -n ${var.namespace}-test -- sh -c "export SERO_USER=${env.SERO_USER} &&
+          export SERO_PASSWORD=${env.SERO_PASSWORD} &&
+          python3 helm-chart-analyzer.py eric-cbrs-dc-package ${var.chart-version} 21 42 | tee helm-chart-analyzer.log"
+        - kubectl cp ${var.namespace}-test/gauge-runner:helm-chart-analyzer.log ${test.test-target-folder}/logs/helm-chart-analyzer.log

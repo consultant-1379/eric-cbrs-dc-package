@@ -1,0 +1,11 @@
+apiVersion: "networking.k8s.io/v1"
+kind: "IngressClass"
+metadata:
+  name: "cbrs-ingress-nginx"
+  labels:
+    app.kubernetes.io/name: cbrs-ingress-controller-nx
+    app.kubernetes.io/component: controller
+  annotations:
+    ericsson.com/product-number: "CXC 111 1111"
+spec:
+  controller: k8s.io/ingress-nginx

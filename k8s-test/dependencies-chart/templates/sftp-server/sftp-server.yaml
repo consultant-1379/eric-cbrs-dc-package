@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.sftp_server.name }}
+  labels:
+    app: {{ .Values.sftp_server.name }}-app
+spec:
+  containers:
+    - name: {{ .Values.sftp_server.name }}
+      image: "{{ .Values.sftp_server.image }}:{{ .Values.sftp_server.tag }}"
+      imagePullPolicy: {{ .Values.sftp_server.pullPolicy }}
+      ports:
+        - containerPort: {{ .Values.sftp_server.containerPort }}

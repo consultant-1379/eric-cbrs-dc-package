@@ -1,0 +1,96 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Development Rules"
+
+docker-images:
+  - adp-helm-kubectl: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob-py3kubehelmbuilder:latest
+
+properties:
+  - kube-config: .kube/config
+  - proxy-gateway-host: "ieatlms4683.athtem.eei.ericsson.se"
+  - proxy-gateway-user: root
+  - proxy-gateway-pwd: ""
+  - proxy-gateway-url: "ssh://${proxy-gateway-host}/#${proxy-gateway-user}:${proxy-gateway-pwd}"
+  - proxy-port: 2829
+  - dp-proxy-image: armdocker.rnd.ericsson.se/proj_oss/domainproxy/pproxy:latest
+  - dp-proxy-container: pproxy
+  - local-deployment: "False"
+  - local-deployment-dep-to-remove: '.name == \"eric-ran-pm-service\" or .name == \"eric-ran-br-service\" or .name == \"eric-oss-ddc\" or .name == \"eric-oss-metrics-stager\" or .name == \"eric-pm-alert-manager\" or .name == \"eric-enmsg-elasticsearch\"'
+
+env:
+  - HOME
+  - PWD
+  - PROXY_GATEWAY_HOST (default=${proxy-gateway-host})
+  - PROXY_GATEWAY_USER (default=${proxy-gateway-user})
+  - PROXY_GATEWAY_PWD (default=${proxy-gateway-pwd})
+  - PROXY_GATEWAY_URL (default="ssh://${env.PROXY_GATEWAY_HOST}/#${env.PROXY_GATEWAY_USER}:${env.PROXY_GATEWAY_PWD}")
+  - KUBECONFIG (default=${env.PWD}/${kube-config})
+
+rules:
+
+  conditions:
+    - task: is-proxy-running
+      cmd: docker ps | grep ${dp-proxy-container}
+    - task: is-local-deployment
+      cmd: "test '${local-deployment}' == 'True'"
+    - task: has-local-cluster-dcc
+      cmd: "k3d cluster list dcc"
+    - task: has-proxy-host
+      cmd: "test -n '${env.PROXY_GATEWAY_HOST}'"
+
+  setup-proxy:
+    - rule: stop-proxy
+    - task: start-proxy
+      cmd: "docker run -v $${PWD}:$${PWD} --rm --name ${dp-proxy-container} -d -i -p 0.0.0.0:${proxy-port}:8080 ${dp-proxy-image} -l http+socks4+socks5://:8080 -r ${env.PROXY_GATEWAY_URL} -vv"
+    - task: patch-kube-config
+      cmd: "PIP=$(docker inspect -f '{{ .NetworkSettings.Networks.bridge.Gateway }}' ${dp-proxy-container}|grep -v 'no value' || hostname -i | awk -F' ' '{print $1}'); sed -i -E \"s/^(.*)server:.*/&\\n\\1proxy-url: http:\\/\\/$PIP:${proxy-port}/\" ${env.KUBECONFIG}"
+
+  stop-proxy:
+    - task: patch-kube-config
+      cmd: "sed -i '/proxy-url/d' ${env.KUBECONFIG}"
+    - task: stop-proxy
+      cmd: "docker stop ${dp-proxy-container}; docker rm -v ${dp-proxy-container} || echo 'no container to clear'"
+
+  start-proxy:
+    - rule: do-start-proxy
+      condition: conditions:has-proxy-host
+
+  do-start-proxy:
+    - rule: setup-proxy
+      condition: NOT (conditions:is-proxy-running OR conditions:is-local-deployment)
+      # this is for helm: the version 3.2.4 does not recognize the http-proxy tag on the kubeconfig file and the newer versions fails with 'EOF' error on some servers
+    - task: set-docker-env-flag
+      cmd: >
+        bash -c "echo \" --env HTTP_PROXY=$(grep proxy-url ${env.KUBECONFIG} | sed -r 's/ *proxy-url: (.+)/\1/' )\" | tr -d '\n'  | tee -a .bob/var.docker-flags-kube-config"
+
+  create-local-cluster:
+    - task: create-k3d-dcc-cluster
+      condition: conditions:is-local-deployment AND NOT(conditions:has-local-cluster-dcc)
+      cmd: k3d cluster create -a 2 --k3s-arg "--disable=traefik@server:0" --api-port $(docker inspect -f "{{(index .IPAM.Config 0).Gateway}}"  bridge):6555 -p "8081:80@loadbalancer" -p "8443:443@loadbalancer"  dcc
+
+  delete-local-cluster:
+    - task: create-k3d-dcc-cluster
+      condition: conditions:is-local-deployment AND (conditions:has-local-cluster-dcc)
+      cmd: k3d cluster delete dcc
+
+  prepare-for-local-install:
+    - task: set-helm-extra-opts-for-local-deployment
+      condition: conditions:is-local-deployment
+      cmd:
+        - echo ' --set eric-ran-fm-service.eric-data-document-database-pg.brAgent.enabled=false' | tr -d '\n' > .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-fm-service.eric-data-document-database-pg.metrics.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-log-service.eric-data-search-engine.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-log-service.eric-data-search-engine.brAgent.customAgent=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-enmsg-elasticsearch.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-security-service.eric-sec-ldap-server.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-security-service.eric-data-distributed-coordinator-ed.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-cm-service.eric-data-document-database-pg.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-cm-service.eric-data-document-database-pg.metrics.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-data-document-database-pg.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-data-document-database-pg.metrics.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-enmsg-elasticsearch.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-enmsg-elasticsearch.brAgent.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-cm-service.eric-cm-yang-provider.pmMetrics.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-cm-service.eric-cm-yang-provider.service.type="ClusterIP"' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --set eric-ran-security-service.eric-sec-admin-user-management.metrics.enabled=false' | tr -d '\n' >> .bob/var.helm-extra-opts
+        - echo ' --post-renderer k8s-test/scripts/helm-minimize-local.sh' | tr -d '\n' >> .bob/var.helm-extra-opts

@@ -1,0 +1,22 @@
+{{- if index .Values "tags" "eric-cbrs-dc-common" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "eric-cbrs-dc-package.security-policy-rolebinding.name" . }}
+  annotations: {{ include "eric-cbrs-dc-package.annotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    helm.sh/chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+    app.kubernetes.io/version: {{ template "eric-cbrs-dc-package.version" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: {{ .Values.global.securityPolicy.rolekind }}
+  name: {{ .Values.securityPolicy.rolename }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "eric-cbrs-dc-package.service-account.name" . }}
+{{- end }}
+
+

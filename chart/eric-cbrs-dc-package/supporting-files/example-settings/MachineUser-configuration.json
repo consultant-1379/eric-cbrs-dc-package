@@ -1,0 +1,10 @@
+{
+  "user": [{
+    "name": "COMUser",
+    "password": "",
+    "groups": [
+      "system-admin",
+      "system-security-admin"
+    ]
+  }]
+}

@@ -1,0 +1,164 @@
+#!/usr/bin/env groovy
+
+def defaultBobImage = 'armdocker.rnd.ericsson.se/proj-adp-cicd-drop/bob.2.0:latest'
+def bob = new BobCommand()
+        .bobImage(defaultBobImage)
+        .envVars([
+                HOME             : '/home/cbrsciadm',
+                CHART_NAME       : '${CHART_NAME}',
+                CHART_REPO       : '${CHART_REPO}',
+                CHART_VERSION    : '${CHART_VERSION}',
+                GERRIT_REFSPEC   : '${GERRIT_REFSPEC}',
+                RELEASE          : '${RELEASE}',
+                SITE_VALUES      : '${SITE_VALUES}',
+                HELM_REPO_TOKEN  : '${HELM_REPO_TOKEN}',
+                SELI_USER      : '${SELI_USER}',
+                SELI_PASSWORD  : '${SELI_PASSWORD}',
+                SERO_USER        : '${SERO_USER}',
+                SERO_PASSWORD    : '${SERO_PASSWORD}',
+                KUBECONFIG       : '${KUBECONFIG}',
+                USER             : '${USER}',
+                GERRIT_USERNAME: '${GERRIT_USERNAME}',
+                GERRIT_PASSWORD: '${GERRIT_PASSWORD}',
+                ARM_API_TOKEN  : '${ARM_API_TOKEN}',
+                INT_CHART_NAME   : '${INT_CHART_NAME}',
+                INT_CHART_REPO   : '${INT_CHART_REPO}',
+                INT_CHART_VERSION: '${INT_CHART_VERSION}'
+        ])
+        .needDockerSocket(true)
+        .toString()
+def LOCKABLE_RESOURCE_LABEL = "kaas-app-staging"
+pipeline {
+    agent {
+        node {
+            label 'GE7_Docker'
+        }
+    }
+    options {
+        lock(label: LOCKABLE_RESOURCE_LABEL, variable: 'RESOURCE_NAME', quantity: 1)
+    }
+    parameters {
+        string(name: 'CHART_NAME', description: 'Chart name e.g.: eric-cbrs-dc')
+        string(name: 'CHART_REPO', description: 'Chart repo e.g.: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-drop-helm')
+        string(name: 'CHART_VERSION', description: 'Chart version e.g.: 1.0.0-1')
+        string(name: 'INT_CHART_NAME', defaultValue: 'eric-cbrs-dc-package', description: 'Chart name e.g.: eric-cbrs-dc-package')
+        string(name: 'INT_CHART_REPO', description: 'Chart repo e.g.: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-ci-internal-helm')
+        string(name: 'INT_CHART_VERSION', description: 'Chart version e.g.: 1.0.0-1')
+        string(name: 'GERRIT_REFSPEC', defaultValue: '', description: 'Gerrit Refspect e.g.: refs/changes/87/4641487/1')
+    }
+    environment {
+        KUBECONFIG = "${WORKSPACE}/.kube/config"
+        SITE_VALUES = "${WORKSPACE}/k8s-test/eric-cbrs-integration-values-application-staging-c16a036.yaml"
+    }
+    stages {
+        stage('Init') {
+            environment {
+                K8S_CONFIG_FILE_ID = sh(script: "echo \${RESOURCE_NAME} | cut -d'_' -f1", returnStdout: true).trim()
+            }
+            steps {
+                script {
+                    currentBuild.description = ''
+                    if (params.CHART_VERSION != null && params.CHART_VERSION != "") {
+                        currentBuild.description += params.CHART_NAME + ': ' + params.CHART_VERSION + '<br>'
+                    }
+
+                    if (params.INT_CHART_VERSION != null && params.INT_CHART_VERSION != "") {
+                        currentBuild.description += params.INT_CHART_NAME + ': ' + params.INT_CHART_VERSION + '<br>'
+                    }
+
+                    if (params.GERRIT_REFSPEC != null && params.GERRIT_REFSPEC != "") {
+                        sh "git fetch ${GIT_URL} ${GERRIT_REFSPEC} && git checkout FETCH_HEAD"
+                        gtokens = params.GERRIT_REFSPEC.split("/")
+                        currentBuild.description += '<a href="https://gerrit-gamma.gic.ericsson.se/#/c/' + gtokens[3] + '/' + gtokens[4] + '">gerrit change: ' + gtokens[3] + ',' + gtokens[4] + '</a>'
+                    }
+                }
+                configFileProvider([configFile(fileId: "${K8S_CONFIG_FILE_ID}", targetLocation: "${env.KUBECONFIG}")]) {}
+                withCredentials([
+                        usernamePassword(credentialsId: 'Gerrit HTTP', usernameVariable: 'GERRIT_USERNAME', passwordVariable: 'GERRIT_PASSWORD'),
+                        usernamePassword(credentialsId: 'SELI_Artifactory', usernameVariable: 'SELI_USER', passwordVariable: 'SELI_PASSWORD'),
+                        usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD'),
+                        string(credentialsId: 'CBRSCIADM', variable: 'ARM_API_TOKEN')]) {
+                    sh "${bob} init"
+                }
+            }
+        }
+        stage('Install') {
+            steps {
+                sh "${bob} install-baseline"
+            }
+        }
+        stage('Upgrade') {
+            steps {
+                sh "${bob} upgrade"
+            }
+        }
+        stage('Test') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD')]) {
+                    sh "${bob} test"
+                }
+            }
+        }
+        stage('Rollback') {
+            steps {
+                sh "${bob} rollback"
+            }
+        }
+        stage('Uninstall') {
+            steps {
+                sh "${bob} uninstall"
+            }
+        }
+    }
+    post {
+        always {
+            withCredentials([usernamePassword(credentialsId: 'SERO_Artifactory', usernameVariable: 'SERO_USER', passwordVariable: 'SERO_PASSWORD')]) {
+                sh "${bob} report || true"
+            }
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'k8s-test/target/reports/**/*.*'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'k8s-test/target/logs/**/*.*'
+            publishHTML target: [allowMissing: true, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'k8s-test/target/reports/html-report/', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: 'HTML Report']
+            sh "${bob} clean || true"
+        }
+    }
+}
+
+// More about @Builder: http://mrhaki.blogspot.com/2014/05/groovy-goodness-use-builder-ast.html
+import groovy.transform.builder.Builder
+import groovy.transform.builder.SimpleStrategy
+
+@Builder(builderStrategy = SimpleStrategy, prefix = '')
+class BobCommand {
+
+    def bobImage = 'bob.2.0:latest'
+    def envVars = [:]
+
+    def needDockerSocket = false
+
+    String toString() {
+        def env = envVars
+                .collect({ entry -> "-e ${entry.key}=\"${entry.value}\"" })
+                .join(' ')
+
+        def cmd = """\
+            |docker run
+            |--init
+            |--rm
+            |--workdir \${PWD}
+            |--user \$(id -u):\$(id -g)
+            |-v \${PWD}:\${PWD}
+            |-v /etc/group:/etc/group:ro
+            |-v /etc/passwd:/etc/passwd:ro
+            |-v \${HOME}:\${HOME}
+            |${needDockerSocket ? '-v /var/run/docker.sock:/var/run/docker.sock' : ''}
+            |${env}
+            |\$(for group in \$(id -G); do printf ' --group-add %s' "\$group"; done)
+            |--group-add \$(stat -c '%g' /var/run/docker.sock)
+            |${bobImage}
+            |"""
+        return cmd
+                .stripMargin()           // remove indentation
+                .replace('\n', ' ')      // join lines
+                .replaceAll(/[ ]+/, ' ') // replace multiple spaces by one
+    }
+}

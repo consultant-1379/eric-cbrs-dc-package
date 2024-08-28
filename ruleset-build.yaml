@@ -1,0 +1,309 @@
+modelVersion: 2.0
+
+description: "CBRS DC SA Build Rules"
+
+docker-images:
+  - adp-int-helm: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/adp-int-helm-chart-auto:latest
+  - adp-helm-dr-check: armdocker.rnd.ericsson.se/proj-adp-cicd-drop/common-library-adp-helm-dr-check:latest
+
+properties:
+  - helm-design-rules-tags: "-DhelmDesignRule.setValue.eric-cbrs-dc-package=tags.eric-cbrs-dc-common=true,tags.eric-cbrs-dc-shared=true,tags.eric-cbrs-dc-deployment-1=true,tags.eric-cbrs-dc-deployment-2=true -DhelmDesignRule.config.timeout=50"
+  - helm-disabled-design-rules-tags: "-DhelmDesignRule.config.DR-D1121-102=skip -DhelmDesignRule.config.DR-D1124-021=skip -DhelmDesignRule.config.DR-D1121-064=skip -DhelmDesignRule.config.DR-D1121-120=skip -DhelmDesignRule.config.DR-D1121-121=skip -DhelmDesignRule.config.DR-D1121-144=skip -DhelmDesignRule.config.DR-D1121-145=skip -DhelmDesignRule.config.DR-D1120-061=skip -DhelmDesignRule.config.DR-D1121-106=skip -DhelmDesignRule.config.DR-D1120-025=skip -DhelmDesignRule.config.DR-D1126-030=skip -DhelmDesignRule.config.DR-D1120-056=skip -DhelmDesignRule.config.DR-D1121-067=skip -DhelmDesignRule.config.DR-D1121-104=skip -DhelmDesignRule.config.DR-D1123-113=skip -DhelmDesignRule.config.DR-D1123-115=skip -DhelmDesignRule.config.DR-D1123-133=skip -DhelmDesignRule.config.DR-D1120-045=skip"
+  - helm-chart-repo-server-path: https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc
+  - helm-repo-internal: ${helm-chart-repo-server-path}-ci-internal-helm
+  - helm-repo-drop: ${helm-chart-repo-server-path}-drop-helm
+  - helm-repo-release: ${helm-chart-repo-server-path}-released-helm
+  - git-repo-url: https://gerrit-gamma.gic.ericsson.se/OSS/ENM-Parent/SQ-Gate/com.ericsson.oss.services.domainproxy/eric-cbrs-dc-package
+  - git-branch: master
+  - chart-path: chart/eric-cbrs-dc-package
+  - charts_to_publish_drop: "eric-oss-ingress-controller-nx eric-oss-ddc eric-oss-metrics-stager eric-pm-alert-manager eric-cbrs-dc"
+  - cbrs-dc-repository-dev: ${helm-chart-repo-server-path}-dev-helm
+  - cbrs-dc-chart-name: eric-cbrs-dc
+  - cbrs-dc-version: ""
+  - upload-to-internal-ci: "true"
+  - common-docker-flags: " --env ALWAYS_RELEASE=false
+                           --env ARM_API_TOKEN
+                           --env AUTOMATIC_RELEASE=false
+                           --env GERRIT_PASSWORD
+                           --env GERRIT_REFSPEC
+                           --env GERRIT_TOPIC=inca
+                           --env GERRIT_USERNAME
+                           --env GIT_BRANCH=${git-branch}
+                           --env GIT_REPO_URL=${git-repo-url}
+                           --env HELM_DROP_REPO=${helm-repo-drop}
+                           --env HELM_INTERNAL_REPO=${helm-repo-internal}
+                           --env HELM_RELEASED_REPO=${helm-repo-release}
+                           --env VERSION_STEP_STRATEGY_DEPENDENCY=MINOR
+                           --env VERSION_STEP_STRATEGY_MANUAL=MINOR"
+
+env:
+  - HOME
+  - USER
+  - PWD
+  - GERRIT_USERNAME
+  - GERRIT_PASSWORD
+  - CBRS_SSH
+  - SELI_USER (default=${env.USER})
+  - SELI_PASSWORD (default=)
+  - SERO_USER (default=${env.USER})
+  - SERO_PASSWORD (default=)
+  - CHART_NAME (default=)
+  - CHART_REPO (default=${helm-repo-release}) # why default to this??
+  - CHART_VERSION (default=)
+  - GERRIT_REFSPEC
+  - JOB_NAME
+  - JENKINS_URL
+  - BUILD_NUMBER
+  - PRODUCTION_DATE (default = $(date +%FT%TZ --utc))
+  - SPRINT_TAG (default="")
+  - UPLOAD_INTERNAL
+  - HELM_RELEASE (default=${common.helm-chart-name}-release)
+  - BRANCH
+  - R_STATE (default="P1A")
+  # Credentials
+  - ARM_API_TOKEN
+
+var:
+  - chart-version
+  - ignore-non-released
+  - ignore-csar-build
+  - dep-chart-name
+  - dep-chart-repo
+  - dep-chart-version
+  - docker-flags-kube-config
+  - chart-version
+  - chart-url
+  - built-version
+  - built-url
+
+import:
+  dev: ruleset-dev.yaml
+
+rules:
+  lint:
+    - task: helm-chart-design-rule-check
+      docker-image: adp-helm-dr-check
+      cmd: helm-dr-check -DhelmDesignRule.feature.dependency=1 --helm-v3 --output ${env.PWD}/Design_Rules --helm-chart-repo https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-ci-internal-helm/ --helm-chart-name eric-cbrs-dc-package --helm-chart-version ${var.chart-version} -f k8s-test/integration-values-base.yaml -f k8s-test/integration-values-env-default.yaml ${helm-design-rules-tags} ${helm-disabled-design-rules-tags} --fail-on-warnings true
+
+  update-repositories-yaml:
+    - task: update-repositories-yaml
+      # sed separator is '#' as SELI_PASSWORD,SELI_USER,SERO_USER,SERO_PASSWORD string includes '/'
+      cmd:
+        - "cp repositories-example.yaml .bob/repositories.yaml"
+        - "sed -i 's#SERO_HELM_USER#${env.SERO_USER}#g' .bob/repositories.yaml"
+        - "sed -i 's#SERO_HELM_PASS#${env.SERO_PASSWORD}#g' .bob/repositories.yaml"
+        - "sed -i 's#SELI_HELM_USER#${env.SELI_USER}#g' .bob/repositories.yaml"
+        - "sed -i 's#SELI_HELM_PASS#${env.SELI_PASSWORD}#g' .bob/repositories.yaml"
+  #skip publish if it is a drop version of ADP/APPSS chart
+  set-ignore-non-released:
+    - task: set-ignore-non-released
+      cmd:
+        - bash -c "echo ${charts_to_publish_drop} | grep -q -w -v \"$CHART_NAME\"
+          && echo true | tee .bob/var.ignore-non-released
+          || echo false | tee .bob/var.ignore-non-released"
+
+  prepare:
+    - rule: prepare-ci
+      condition: conditions:has-git-credentials AND conditions:has-chart-updates
+    - rule: prepare-local-chart
+      condition: NOT (conditions:has-git-credentials AND conditions:has-chart-updates)
+
+  prepare-ci:
+    - rule: update-repositories-yaml
+    - rule: set-ignore-non-released
+    - rule: set-next-internal-chart-version
+    - task: set-chart-vars
+      condition: NOT conditions:is-prepare-chart
+      cmd:
+        - echo ${var.built-url} | tee .bob/var.chart-url
+        - echo ${var.built-version} | tee .bob/var.chart-version
+    - task: prepare helm chart
+      condition: conditions:is-prepare-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - "--env CHART_NAME"
+        - "--env CHART_REPO"
+        - "--env CHART_VERSION"
+        - "--env GERRIT_REFSPEC"
+        - "--env GERRIT_USERNAME"
+        - "--env GERRIT_PASSWORD"
+        - "--env GIT_BRANCH=${git-branch}"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env ARM_API_TOKEN"
+        - "--env GIT_REPO_URL=${git-repo-url}"
+        - "--env CHART_PATH=${chart-path}"
+        - "--env HELM_INTERNAL_REPO=${helm-repo-internal}"
+        - "--env HELM_DROP_REPO=${helm-repo-drop}"
+        - "--env HELM_RELEASED_REPO=${helm-repo-release}"
+        - "--env ALLOW_DOWNGRADE=false"
+        - "--env IGNORE_NON_RELEASED=${var.ignore-non-released}"
+        - "--env AUTOMATIC_RELEASE=false"
+        - "--env ALWAYS_RELEASE=false"
+        - "--env VERSION_STEP_STRATEGY_DEPENDENCY=MINOR"
+        - "--env VERSION_STEP_STRATEGY_MANUAL=MINOR"
+        - "--env UPLOAD_INTERNAL=${upload-to-internal-ci}"
+      cmd:
+        - ihc-auto prepare --replace PRODUCTION_DATE=${env.PRODUCTION_DATE} --replace SPRINT_TAG=${env.SPRINT_TAG} --replace DEFAULT_PACKAGE_VERSION=${var.chart-version} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG}
+        - echo $CHART_NAME
+        - echo $CHART_REPO
+        - echo $CHART_VERSION
+        - grep 'INT_CHART_VERSION=' artifact.properties | awk -F= '{print $2}' | tee .bob/var.chart-version | tee .bob/var.built-version
+        - echo "file://${env.PWD}/.bob/$(grep 'INT_CHART_NAME=' artifact.properties | awk -F= '{print $2}' )-${var.chart-version}.tgz" | tee .bob/var.chart-url | tee .bob/var.built-url
+
+  conditions:
+    - task: has-dc-chart-version
+      cmd: "test -n '${cbrs-dc-version}'"
+    - task: has-git-credentials
+      cmd: "test -n '${env.GERRIT_USERNAME}'"
+    - task: has-chart-updates
+      cmd: "test -n '${env.GERRIT_REFSPEC}${env.CHART_NAME}'"
+    - task: is-prepare-chart
+      cmd: test "${var.built-version}" == "None" || test "${var.built-url}" == "None"
+
+  set-updated-dependency-for-local:
+    - task: set-default-from-env
+      cmd:
+        - echo "${env.CHART_NAME}" | tee .bob/var.dep-chart-name
+        - echo "${env.CHART_REPO}" | tee .bob/var.dep-chart-repo
+        - echo "${env.CHART_VERSION}" | tee .bob/var.dep-chart-version
+    - task: use-dc-dev-version
+      condition: conditions:has-dc-chart-version
+      cmd:
+        - echo "${cbrs-dc-chart-name}" | tee .bob/var.dep-chart-name
+        - echo "${cbrs-dc-repository-dev}" | tee .bob/var.dep-chart-repo
+        - echo "${cbrs-dc-version}" | tee .bob/var.dep-chart-version
+
+  prepare-local-chart:
+    - rule: update-repositories-yaml
+    - rule: set-updated-dependency-for-local
+    - task: set-chart-vars
+      condition: NOT conditions:is-prepare-chart
+      cmd:
+        - echo ${var.built-url} | tee .bob/var.chart-url
+        - echo ${var.built-version} | tee .bob/var.chart-version
+    - task: prepare helm chart
+      condition: conditions:is-prepare-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - ${common-docker-flags}
+        - "--env ALLOW_DOWNGRADE=true"
+        - "--env CHART_NAME=${var.dep-chart-name}"
+        - "--env CHART_PATH=${chart-path}"
+        - "--env CHART_REPO=${var.dep-chart-repo}"
+        - "--env CHART_VERSION=${var.dep-chart-version}"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env IGNORE_NON_RELEASED=${var.ignore-non-released}"
+        - "--env UPLOAD_INTERNAL=false"
+        - ${var.docker-flags-kube-config}
+      cmd:
+        - bash -o pipefail -c 'cp "$CHART_PATH/Chart.yaml" "$CHART_PATH/Chart.yaml.orig";
+          if [ -n "$CHART_NAME" ] && [ -n "$CHART_VERSION" ]; then
+          ihc-update -f "$CHART_PATH" -n "$CHART_NAME" -v "$CHART_VERSION" -r "$CHART_REPO" --allow-downgrade;
+          fi;
+          if [ "${dev.local-deployment}" = "True" ]; then
+          yq -i -Y "del( .dependencies[] | select(${dev.local-deployment-dep-to-remove}))" $CHART_PATH/Chart.yaml;
+          fi;
+          ihc-auto prepare-dev --replace PRODUCTION_DATE=${env.PRODUCTION_DATE} --replace SPRINT_TAG=${env.SPRINT_TAG} --replace DEFAULT_PACKAGE_VERSION=${env.CHART_VERSION} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG} 2>&1 | tee .bob/log-build.log;
+          _rc_=$?;
+          echo "completed! code = $_rc_" | tee -a .bob/log-build.log;
+          mv "$CHART_PATH/Chart.yaml.orig" "$CHART_PATH/Chart.yaml";
+          exit $_rc_';
+        - bash -o pipefail -c "grep 'INT_CHART_VERSION=' artifact.properties | awk -F= '{print \$2}' | tee .bob/var.chart-version | tee .bob/var.built-version"
+        - bash -o pipefail -c "CN=$(grep 'INT_CHART_NAME=' artifact.properties | awk -F= '{print $2}'); echo \"file://${env.PWD}/.bob/\$CN-${var.chart-version}.tgz\" | tee .bob/var.chart-url | tee .bob/var.built-url"
+
+  publish:
+    - rule: update-repositories-yaml
+    - rule: set-ignore-non-released
+    - task: set-ignore-csar-build
+      cmd:
+        - bash -c "[[ \"$CHART_VERSION\" == *\"-\"* && ${var.ignore-non-released} == true ]]
+          && echo True | tee .bob/var.ignore-csar-build
+          || echo False | tee .bob/var.ignore-csar-build"
+    - task: publish helm chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - ${common-docker-flags}
+        - "--env ALLOW_DOWNGRADE=false"
+        - "--env CHART_NAME"
+        - "--env CHART_PATH=${chart-path}"
+        - "--env CHART_REPO"
+        - "--env CHART_VERSION"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env SKIP_COND=${var.ignore-csar-build}"
+        - "--env SKIP_INFO=true"
+        - "--env SOURCE=${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}"
+      cmd:
+        - next-version --chart-path ${env.PWD}/chart/eric-cbrs-dc-package -t MINOR -o .bob/var.chart-version
+        - ihc-auto publish --replace PRODUCTION_DATE=${env.PRODUCTION_DATE} --replace SPRINT_TAG=${env.SPRINT_TAG} --replace DEFAULT_PACKAGE_VERSION=${var.chart-version} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG}
+        - echo $CHART_NAME
+        - echo $CHART_REPO
+        - echo $CHART_VERSION
+
+  precodereview:
+    - rule: update-repositories-yaml
+    - rule: set-next-internal-chart-version
+    - task: prepare helm chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - ${common-docker-flags}
+        - "--env ALLOW_DOWNGRADE=false"
+        - "--env CHART_NAME"
+        - "--env CHART_PATH=${chart-path}"
+        - "--env CHART_REPO"
+        - "--env CHART_VERSION"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env IGNORE_NON_RELEASED=false"
+        - "--env SOURCE=${env.JENKINS_URL}/job/${env.JOB_NAME}/${env.BUILD_NUMBER}"
+        - "--env UPLOAD_INTERNAL=${env.UPLOAD_INTERNAL}"
+      cmd:
+        - ihc-auto prepare --replace PRODUCTION_DATE=${env.PRODUCTION_DATE} --replace SPRINT_TAG=${env.SPRINT_TAG} --replace DEFAULT_PACKAGE_VERSION=${var.chart-version} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG}
+        - echo $CHART_NAME
+        - echo $CHART_REPO
+        - echo $CHART_VERSION
+        - bash -o pipefail -c "grep 'INT_CHART_VERSION=' artifact.properties | awk -F= '{print \$2}' | tee .bob/var.chart-version"
+
+  package-helm-chart:
+    - rule: update-repositories-yaml
+    - task: prepare-helm-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - "--env GERRIT_USERNAME"
+        - "--env GERRIT_PASSWORD"
+        - "--env GIT_BRANCH=${env.BRANCH}"
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env ARM_API_TOKEN"
+        - "--env GIT_REPO_URL=${git-repo-url}"
+        - "--env CHART_PATH=${chart-path}"
+      cmd:
+        - next-version --chart-path ${env.PWD}/chart/eric-cbrs-dc-package -r -t PATCH -o .bob/var.chart-version
+        - ihc-package -f ${env.PWD}/chart/eric-cbrs-dc-package -o .bob -w .bob/eric-cbrs-dc-package_tmp -c ${env.PWD}/.bob/repositories.yaml -v ${var.chart-version} --replace DEFAULT_PACKAGE_VERSION=${var.chart-version} --replace DEFAULT_R_STATE=${env.R_STATE} --replace DEFAULT_SPRINT_NUMBER=${env.SPRINT_TAG}
+    - task: git-tag
+      cmd:
+        - git config user.name "CBRSCIADM"
+        - git config user.email "cbrsciadm-no-reply@nomail.com"
+        - git config user.password "${env.CBRS_SSH}"
+        - git add ${env.PWD}/chart/eric-cbrs-dc-package/Chart.yaml
+        - git commit -m "Release ${var.chart-version}"
+        - git tag ${var.chart-version}
+        - git push origin HEAD:${env.BRANCH}
+        - git push origin ${var.chart-version}
+    - task: upload-helm-chart
+      docker-image: adp-int-helm
+      docker-flags:
+        - "--env HELM_REPO_CREDENTIALS=${env.PWD}/.bob/repositories.yaml"
+        - "--env ARM_API_TOKEN"
+      cmd:
+        - arm-upload -f .bob/eric-cbrs-dc-package-${var.chart-version}.tgz -u https://arm.seli.gic.ericsson.se/artifactory/proj-eric-cbrs-dc-released-helm/eric-cbrs-dc-package/ -t ${env.ARM_API_TOKEN}
+
+  archiveArtifacts:
+    - task: ihc-generate-artifacts
+      docker-image: adp-int-helm
+      cmd:
+        - ihc-generate-artifacts --int-chart-name eric-cbrs-dc-package --int-chart-version ${var.chart-version} --int-chart-repo ${helm-repo-release}
+
+  set-next-internal-chart-version:
+    - task: set-next-internal-chart-version
+      docker-image: adp-int-helm
+      cmd:
+        - next-version --chart-path ${env.PWD}/chart/eric-cbrs-dc-package -t MINOR -o .bob/var.next-version
+        - echo $(cat .bob/var.next-version)-h$(git rev-parse --short HEAD) | tee .bob/var.chart-version

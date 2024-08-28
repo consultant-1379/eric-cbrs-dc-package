@@ -1,0 +1,14 @@
+repositories:
+- url: https://arm.sero.gic.ericsson.se/artifactory/
+  username: "SERO_HELM_USER"
+  password: "SERO_HELM_PASS"
+- url: https://arm.seli.gic.ericsson.se/artifactory/
+  username: "SELI_HELM_USER"
+  password: "SELI_HELM_PASS"
+- url: https://arm.rnd.ki.sw.ericsson.se/artifactory/
+  username: "SERO_HELM_USER"
+  password: "SERO_HELM_PASS"
+- url: https://arm.epk.ericsson.se/artifactory/
+  username: "SELI_HELM_USER"
+  password: "SELI_HELM_PASS"
+

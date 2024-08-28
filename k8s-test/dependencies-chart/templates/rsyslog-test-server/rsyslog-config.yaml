@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ .Values.rsyslog_test_server.name }}-app
+  name: rsyslog-config
+data:
+  rsyslog.conf: |
+    global(
+    defaultNetstreamDriver="gtls"
+    defaultNetstreamDriverCAFile="/run/secrets/syslogOutput-cacerts/trustedcert"
+    defaultNetstreamDriverCertFile="/run/secrets/syslogOutput-certs/tls.crt"
+    defaultNetstreamDriverKeyFile="/run/secrets/syslogOutput-certs/tls.key"
+    )
+    module(
+    load="imtcp"
+    StreamDriver.Name="gtls"
+    StreamDriver.mode="1"
+    StreamDriver.authmode="x509/name"
+    PermittedPeer="*"
+    )
+    input(
+    type="imtcp"
+    port="514"
+    )
+    *.* -/var/log/remote/syslog.log

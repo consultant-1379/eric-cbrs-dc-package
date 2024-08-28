@@ -1,0 +1,1266 @@
+global:
+  timezone: UTC
+  networkPolicy:
+    enabled: true
+  security:
+    tls:
+      enabled: true
+  adpBR:
+    broServiceName: eric-ctrl-bro
+  metrics:
+    kubelet:
+      enabled: true
+    cadvisormetrics:
+      enabled: true
+    nodeexporter:
+      namespace:
+      serviceName: "eric-pm-node-exporter"
+  logShipper:
+    deployment:
+      type: "sidecar"
+  log:
+    outputs:
+      - "stream"
+    streamingMethod: "dual"
+  securityPolicy:
+    rolekind: "Role"
+
+annotations: {}
+
+tags:
+  eric-cbrs-dc-common: false
+  eric-cbrs-dc-shared: false
+  eric-cbrs-dc-deployment-1: false
+  eric-cbrs-dc-deployment-2: false
+
+productInfo:
+  productSet: "SPRINT_TAG" # production date is inserted during helm-package
+  date: PRODUCTION_DATE # production date is inserted during helm-package
+
+tolerations: []
+
+terminationGracePeriodSeconds: 30
+
+cmyp-brm:
+  user:
+  encryptedPass:
+
+uninstall:
+  keepRoles: false
+  image:
+    imagePullPolicy: IfNotPresent
+    registry: armdocker.rnd.ericsson.se
+    repoPath: proj-eric-cbrs-dc-released
+    name: eric-cbrs-dc-init
+    version: 1.66.0-18
+
+eric-cbrs-search-engine-template-job:
+  search-engine:
+    name: eric-data-search-engine-tls
+    port: 9200
+  image:
+    imagePullPolicy: IfNotPresent
+    registry: armdocker.rnd.ericsson.se
+    repoPath: proj-eric-cbrs-dc-released
+    name: eric-cbrs-dc-init
+    tag: 1.66.0-18
+
+eric-cbrs-dc:
+  techDebt:
+    enmProperties:
+      # Encrypted password of secrets.db.super_pwd
+      postgresql01_admin_password: U2FsdGVkX19uWU+/kfu7jHGmy9BQdkr1Wz7pcHG56M8=
+      postgres_service: &dcDatabase eric-data-document-database-pg-dc
+  deploymentConfig:
+    sharedResources:
+      enabled: true
+    deploymentResources:
+      enabled: false
+
+eric-cbrs-dc-1:
+  techDebt:
+    enmProperties:
+      # Encrypted password of secrets.db.super_pwd
+      postgresql01_admin_password: U2FsdGVkX19uWU+/kfu7jHGmy9BQdkr1Wz7pcHG56M8=
+      postgres_service: *dcDatabase
+  deploymentConfig:
+    sharedResources:
+      enabled: false
+    deploymentResources:
+      enabled: true
+      nameSuffix: "1"
+      sharedResourcesName: eric-cbrs-dc
+
+eric-cbrs-dc-2:
+  techDebt:
+    enmProperties:
+      # Encrypted password of secrets.db.super_pwd
+      postgresql01_admin_password: U2FsdGVkX19uWU+/kfu7jHGmy9BQdkr1Wz7pcHG56M8=
+      postgres_service: *dcDatabase
+  deploymentConfig:
+    sharedResources:
+      enabled: false
+    deploymentResources:
+      enabled: true
+      nameSuffix: "2"
+      sharedResourcesName: eric-cbrs-dc
+
+# Security service
+eric-ran-security-service-init:
+  enabled: true
+  env:
+    hookJob:
+      enabled: false
+
+eric-ran-security-service:
+  eric-sec-ldap-server:
+    enabled: true
+    logshipper:
+      enabled: true
+    metrics:
+      enabled: true
+    brAgent:
+      enabled: true
+      backupTypeList:
+        - "BACKUP"
+
+  eric-sec-admin-user-management:
+    enabled: true
+    log:
+      outputs: [ "stdout", "stream" ]
+    metrics:
+      enabled: true
+    egress:
+      iamAuthenticationLdapClient:
+        certificates:
+          asymmetricKeyCertificateName: iam-authentication-ldap-client
+          trustedCertificateListName: iam-authentication-ldap-client
+
+  eric-data-distributed-coordinator-ed:
+    enabled: true
+    labels:
+      eric-ctrl-bro-access: "true"
+    metricsexporter:
+      enabled: true
+    brAgent:
+      enabled: true
+      backupTypeList:
+        - "BACKUP"
+      properties:
+        fileName: "application.properties"
+        applicationProperties: |-
+          dced.agent.restore.type=overwrite
+          dced.excluded.paths=/shelter,/kms/core/lock
+    pods:
+      dced:
+        replicas: 3
+    resources:
+      dced:
+        requests:
+          cpu: "500m"
+          memory: "300Mi"
+        limits:
+          cpu: "1000m"
+          memory: "600Mi"
+      init:
+        requests:
+          cpu: "200m"
+          memory: "200Mi"
+        limits:
+          cpu: "500m"
+          memory: "500Mi"
+
+  eric-sec-certm:
+    enabled: true
+    metrics:
+      enabled: true
+    features:
+      alarmHandling:
+        enabled: true
+        useRestApi: true
+    networkPolicy:
+      enabled: false # Securtity version uplift did not work without this. Open issue in 23.08. Need to be enabled as soon as possible.
+    resources:
+      certm:
+        requests:
+          cpu: "250m"
+        limits:
+          cpu: "400m"
+
+  eric-sec-key-management:
+    enabled: true
+    metrics:
+      enabled: true
+    shelter:
+      enabled: true
+    resources:
+      vault:
+        requests:
+          cpu: "150m"
+          memory: "400Mi"
+        limits:
+          cpu: "300m"
+          memory: "800Mi"
+      ca:
+        requests:
+          cpu: "100m"
+          memory: "200Mi"
+        limits:
+          cpu: "100m"
+          memory: "400Mi"
+      unsealer:
+        requests:
+          cpu: "100m"
+          memory: "200Mi"
+        limits:
+          cpu: "100m"
+          memory: "400Mi"
+
+  eric-sec-sip-tls:
+    enabled: true
+    alarmHandler:
+      useAPIDefinition: true
+    metrics:
+      enabled: true
+    security:
+      policyBinding:
+        create: true
+    labels: {
+      eric-fh-alarm-handler-access: "true"
+    }
+    keyManagement:
+      port: 8210
+    probes:
+      logshipper:
+        livenessProbe:
+          initialDelaySeconds: 400
+
+eric-ran-cm-service-init:
+  enabled: true
+
+eric-ran-cm-service:
+  eric-cm-backend:
+    enabled: true
+    global:
+      log:
+        output: all
+      labels:
+        eric-log-transformer-access: "true"
+  eric-cm-mediator:
+    enabled: true
+    cmm:
+      logOutput: ["stream"]
+    dbbr:
+      enabled: true
+      backupType: "BACKUP"
+  eric-cm-yang-provider:
+    probes:
+      logshipper:
+        livenessProbe:
+          initialDelaySeconds: 400
+    enabled: true
+    ssh:
+      cli:
+        enabled: false
+    pmMetrics:
+      enabled: true
+    ldap:
+      enabled: true
+    userConfig:
+      secretName: "eric-cm-yang-provider-brm-user"
+      secretKey: "eric-cm-yang-provider-brm-user.yaml"
+    # To enable DCM-CM YP NETCONF-TLS communication
+    externalTls:
+      netconf:
+        enabled: true
+    vault:
+      enabled: true
+    service:
+      certificates:
+        asymmetricKeyCertificateName: "cbrs-dc-sa-enm"
+        trustedCertificateListName: "cbrsPubsDcSaEnmCaCerts"
+  eric-data-document-database-pg:
+    shhRbacEnabled: true
+    enabled: true
+    postgresConfig:
+      huge_pages: "off"
+    labels:
+      eric-ctrl-bro-access: "true"
+    metrics:
+      enabled: true
+    credentials:
+      kubernetesSecretName: eric-ran-cm-service-init-pg-secret
+    brAgent:
+      enabled: true
+      logicalDBBackupEnable: false
+      backupTypeList:
+        - "BACKUP"
+    networkPolicy:
+      matchLabels: [eric-cm-backend]
+  eric-data-transformer-json:
+    enabled: true
+
+eric-data-document-database-pg:
+  probes:
+    logshipper:
+      livenessProbe:
+        initialDelaySeconds: 400
+  nameOverride: *dcDatabase
+  highAvailability:
+    replicaCount: 2
+  brAgent:
+    enabled: true
+    brLabelValue: eric-data-document-database-pg-dc-bragent
+    backupTypeList:
+      - "BACKUP"
+  metrics:
+    enabled: true
+  persistentVolumeClaim:
+    storageClassName:
+  credentials:
+    kubernetesSecretName: eric-document-db-pg-secret
+  security:
+    postgres:
+      tls:
+        enable: false
+  service:
+    endpoints:
+      postgres:
+        tls:
+          enforced: optional
+
+eric-ran-pm-service:
+  eric-ran-pm-service-init:
+    enabled: false
+  eric-pm-server:
+    enabled: true
+    server:
+      retention: 15d
+      extraArgs:
+        storage.tsdb.retention.size: 31GB
+      persistentVolume:
+        enabled: true
+        size: 33Gi
+    resources:
+      eric-pm-server:
+        requests:
+          memory: "12Gi"
+        limits:
+          memory: "13000Mi"
+    rbac:
+      appMonitoring:
+        enabled: true
+        configFileCreate: false
+    serverFiles:
+      prometheus.yml: |
+        global:
+          scrape_interval: 60s
+          scrape_timeout: 10s
+          evaluation_interval: 1m
+        rule_files:
+          - "/etc/config/recording_rules.yml"
+        remote_write:
+          - tls_config:
+              ca_file: /run/secrets/pm-int-rw-ca/client-cacertbundle.pem
+              cert_file: /run/secrets/int-rw-clicert/clicert.pem
+              key_file: /run/secrets/int-rw-clicert/cliprivkey.pem
+            url: https://eric-oss-ddc:2234/receive
+            remote_timeout: 30s
+        alerting:
+          alertmanagers:
+          - static_configs:
+            - targets:
+              - 'eric-pm-alert-manager:9093'
+        scrape_configs:
+          - job_name: prometheus
+            static_configs:
+              - targets:
+                - localhost:9090
+                - localhost:9087
+          - job_name: tls-targets
+            scheme: https
+            tls_config:
+              ca_file: /run/secrets/cacert/cacertbundle.pem
+              cert_file: /run/secrets/clicert/clicert.pem
+              key_file: /run/secrets/clicert/cliprivkey.pem
+              server_name: certified-scrape-target
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - {{ .Release.Namespace }}
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: replace
+                target_label: job
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+                action: keep
+                regex: true
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: (.*-tls)
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+                action: replace
+                target_label: __scheme__
+                regex: (https?)
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+                action: replace
+                target_label: __metrics_path__
+                regex: (.+)
+              - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+                action: replace
+                target_label: __address__
+                regex: ((?:\[.+\])|(?:.+))(?::\d+);(\d+)
+                replacement: $1:$2
+              - action: labelmap
+                regex: __meta_kubernetes_service_label_(.+)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: kubernetes_namespace
+              - source_labels: [__meta_kubernetes_service_name]
+                action: replace
+                target_label: kubernetes_name
+          - job_name: 'tls-pod-targets'
+            scheme: https
+            tls_config:
+              ca_file: /run/secrets/cacert/cacertbundle.pem
+              cert_file: /run/secrets/clicert/clicert.pem
+              key_file: /run/secrets/clicert/cliprivkey.pem
+              server_name: certified-scrape-target
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names:
+                    - {{ .Release.Namespace }}
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                action: keep
+                regex: true
+              - source_labels: [__meta_kubernetes_pod_container_port_name]
+                action: keep
+                regex: (.*-tls)
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                action: replace
+                target_label: __metrics_path__
+                regex: (.+)
+              - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                action: replace
+                regex: ((?:\[.+\])|(?:.+))(?::\d+);(\d+)
+                replacement: $1:$2
+                target_label: __address__
+              - action: labelmap
+                regex: __meta_kubernetes_pod_label_(.+)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: kubernetes_namespace
+              - source_labels: [__meta_kubernetes_pod_name]
+                action: replace
+                target_label: kubernetes_pod_name
+          - job_name: 'kubernetes-service-endpoints'
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - {{ .Release.Namespace }}
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: replace
+                target_label: job
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+                action: keep
+                regex: true
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+                action: drop
+                regex: https
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: drop
+                regex: (.*-tls)
+              - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+                action: replace
+                target_label: __metrics_path__
+                regex: (.+)
+              - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+                action: replace
+                target_label: __address__
+                regex: ((?:\[.+\])|(?:.+))(?::\d+);(\d+)
+                replacement: $1:$2
+              - action: labelmap
+                regex: __meta_kubernetes_service_label_(.+)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: kubernetes_namespace
+              - source_labels: [__meta_kubernetes_service_name]
+                action: replace
+                target_label: kubernetes_name
+          - job_name: 'kubernetes-pods'
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names:
+                    - {{ .Release.Namespace }}
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                action: keep
+                regex: true
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+                action: drop
+                regex: https
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: drop
+                regex: (.*-tls)
+              - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                action: replace
+                target_label: __metrics_path__
+                regex: (.+)
+              - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                action: replace
+                regex: ((?:\[.+\])|(?:.+))(?::\d+);(\d+)
+                replacement: $1:$2
+                target_label: __address__
+              - action: labelmap
+                regex: __meta_kubernetes_pod_label_(.+)
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: kubernetes_namespace
+              - source_labels: [__meta_kubernetes_pod_name]
+                action: replace
+                target_label: kubernetes_pod_name
+          {{- if .Values.global.metrics.kubelet.enabled }}
+          - job_name: 'kubelet'
+            scheme: https
+            tls_config:
+              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              insecure_skip_verify: true
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            kubernetes_sd_configs:
+              - role: node
+                namespaces:
+                  names:
+                  - {{ .Release.Namespace }}
+            relabel_configs:
+              - source_labels: [__address__]
+                target_label: instance
+              - target_label: __address__
+                replacement: kubernetes.default.svc:443
+              - source_labels: [__metrics_path__]
+                target_label: metrics_path
+              - source_labels: [__meta_kubernetes_node_name]
+                regex: (.+)
+                target_label: __metrics_path__
+                replacement: /api/v1/nodes/${1}/proxy/metrics
+              - source_labels: [__meta_kubernetes_node_label_kubernetes_io_hostname]
+                target_label: node
+          {{- end }}
+          {{- if .Values.global.metrics.cadvisormetrics.enabled }}
+          - job_name: 'kubelet-cadvisor'
+            scheme: https
+            tls_config:
+              ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              insecure_skip_verify: true
+            bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            kubernetes_sd_configs:
+              - role: node
+                namespaces:
+                  names:
+                  - {{ .Release.Namespace }}
+            metrics_path: /metrics/cadvisor
+            relabel_configs:
+              - source_labels: [__address__]
+                target_label: instance
+              - target_label: __address__
+                replacement: kubernetes.default.svc:443
+              - source_labels: [__metrics_path__]
+                target_label: metrics_path
+              - source_labels: [__meta_kubernetes_node_name]
+                regex: (.+)
+                target_label: __metrics_path__
+                replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+              - source_labels: [__meta_kubernetes_node_label_kubernetes_io_hostname]
+                target_label: node
+            metric_relabel_configs:
+              - action: labeldrop
+                regex: 'id'
+          {{- end }}
+          {{- if .Values.global.metrics.nodeexporter }}
+          {{- if and .Values.global.metrics.nodeexporter.namespace .Values.global.metrics.nodeexporter.serviceName }}
+          - job_name: 'node-exporter'
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                  - {{.Values.global.metrics.nodeexporter.namespace }}
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                regex: {{ .Values.global.metrics.nodeexporter.serviceName }}
+                action: keep
+              - source_labels: [__meta_kubernetes_service_name]
+                action: replace
+                target_label: service
+              - source_labels: [__meta_kubernetes_namespace]
+                action: replace
+                target_label: namespace
+              - target_label: endpoint
+                replacement: metrics
+              - source_labels: [__meta_kubernetes_pod_host_ip]
+                action: replace
+                target_label: node_ip_address
+              - source_labels: [__meta_kubernetes_pod_node_name]
+                action: replace
+                target_label: kubernetes_pod_node_name
+          {{- end }}
+          {{- end }}
+
+      recording_rules.yml: |
+        groups:
+        - name: alert.rules
+          rules:
+          - alert: SASLatencyExceedsFirstThreshold
+            expr: (increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToPostRequestsToSas[10m]) / increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRequestsPostedToSAS[10m])) > 1000
+            for: 1m
+            labels:
+              severity: WARNING
+              specificProblem: "CBRS Domain Proxy: Latency between DC and SAS"
+              probableCause: DC to SAS latency exceeds 1st threshold
+              eventType: "Domain Proxy Service: DC Latency Alarm"
+              recordType: ALARM
+              managedObjectInstance: "Namespace={{ "{{" }} $labels.kubernetes_namespace }},Instance={{ "{{" }} $labels.instance }}"
+            annotations:
+              summary: SAS Latency Exceeds First Threshold
+              description: Running total of time taken to send request and get a response from SAS.
+              additionalText: Latency exceeds 50% threshold, an alarm is raised with warning severity.
+          - alert: SASLatencyExceedsSecondThreshold
+            expr: (increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToPostRequestsToSas[10m]) / increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfRequestsPostedToSAS[10m])) > 1600
+            for: 1m
+            labels:
+              severity: MAJOR
+              specificProblem: "CBRS Domain Proxy: Latency between DC and SAS"
+              probableCause: DC to SAS latency exceeds 2nd threshold
+              eventType: "Domain Proxy Service: DC Latency Alarm"
+              recordType: ALARM
+              managedObjectInstance: "Namespace={{ "{{" }} $labels.kubernetes_namespace }},Instance={{ "{{" }} $labels.instance }}"
+            annotations:
+              summary: SAS Latency Exceeds Second Threshold
+              description: Running total of time taken to send request and get a response from SAS.
+              additionalText: Latency exceeds 80% threshold, an alarm is raised with major severity.
+          - alert: BasebandLatencyExceedsFirstThreshold
+            expr: (increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToUpdateExpiryTimeOnNode[10m]) / increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTimesNodeUpdatedWithExpiryTime[10m])) > 1000
+            for: 1m
+            labels:
+              severity: WARNING
+              specificProblem: "CBRS Domain Proxy: Latency between DC and Baseband"
+              probableCause: DC to Baseband latency exceeds 1st threshold
+              eventType: "Domain Proxy Service: DC Latency Alarm"
+              recordType: ALARM
+              managedObjectInstance: "Namespace={{ "{{" }} $labels.kubernetes_namespace }},Instance={{ "{{" }} $labels.instance }}"
+            annotations:
+              summary: Baseband Latency Exceeds First Threshold
+              description: Running total of time taken to send request and get a response from Baseband.
+              additionalText: Latency exceeds 50% threshold, an alarm is raised with warning severity.
+          - alert: BasebandLatencyExceedsSecondThreshold
+            expr: (increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_timeTakenToUpdateExpiryTimeOnNode[10m]) / increase(jboss_dh_com_dt_ericsson_dt_oss_dt_sas_dt_instrumentation_dt_domain_dh_proxy_dh_service_cl_type_eq_DomainProxyInstrumentation_nm_numberOfTimesNodeUpdatedWithExpiryTime[10m])) > 1600
+            for: 1m
+            labels:
+              severity: MAJOR
+              specificProblem: "CBRS Domain Proxy: Latency between DC and Baseband"
+              probableCause: DC to Baseband latency exceeds 2nd threshold
+              eventType: "Domain Proxy Service: DC Latency Alarm"
+              recordType: ALARM
+              managedObjectInstance: "Namespace={{ "{{" }} $labels.kubernetes_namespace }},Instance={{ "{{" }} $labels.instance }}"
+            annotations:
+              summary: Baseband Latency Exceeds Second Threshold
+              description: Running total of time taken to send request and get a response from baseband.
+              additionalText: Latency exceeds 80% threshold, an alarm is raised with major severity.
+
+  eric-pm-event-exporter:
+    enabled: false
+  eric-pm-bulk-reporter:
+    enabled: false
+  eric-pm-event-controller:
+    enabled: false
+
+eric-ran-fm-service:
+  eric-ran-fm-service-init:
+    faultMappings: "faultMappings/vDU/eric-sec*.json"
+  eric-fh-alarm-handler:
+    authorizationProxy:
+      metrics:
+        enabled: true
+    service:
+      endpoints:
+        metrics:
+          enabled: true
+  eric-data-document-database-pg:
+    probes:
+      logshipper:
+        livenessProbe:
+          initialDelaySeconds: 400
+    brAgent:
+      enabled: true
+    metrics:
+      enabled: true
+    shhRbacEnabled: true
+  eric-fh-snmp-alarm-provider:
+    enabled: false
+  eric-fh-event-exporter:
+    enabled: false
+
+eric-cnom-server:
+  productName: "CBRS Monitor"
+  productNameShort: "CBRS Monitor"
+  ingress:
+    useHttpProxy: false
+    enabled: true
+    ingressClass: cbrs-ingress-nginx
+    hostname: eric-cbrs-monitor-hostname.com
+    annotations: {nginx.ingress.kubernetes.io/backend-protocol: "HTTPS",nginx.ingress.kubernetes.io/ssl-redirect: "true",nginx.ingress.kubernetes.io/ssl-passthrough: "true"}
+    tls:
+      passthrough: true
+    certificates:
+      enabled: true
+      asymmetricKeyCertificateName: cbrs-monitor-enm
+      trustedCertificateListName: cbrsPubsDcSaEnmCaCerts
+  features:
+    alarmViewer: false
+  service:
+    endpoints:
+      api:
+        tls:
+          verifyClientCertificate: optional
+  authentication:
+    local:
+      enabled: false
+    ldap:
+      enabled: true
+      # Workaround for CNOM not supporting TBAC. More on eteamproject ticket - UDM5GP-68005
+      # This role mapping will enable CNOM to authenticate users created in ENM with COM roles.
+      roleMapping:
+        - internalRole: SECURITY_ADMIN
+          externalRoles: ["system-security-admin","SystemSecurityAdministrator"]
+        - internalRole: ADMINISTRATOR
+          externalRoles: ["system-admin","SystemAdministrator"]
+        - internalRole: OPERATOR
+          externalRoles: ["system-read-only","SystemReadOnly"]
+  dashboards:
+    configMaps: [eric-cbrs-dc-dashboards]
+
+secrets:
+  db:
+    custom_user: customuser
+    custom_pwd: custom_pwd
+    super_pwd: 'P0stgreSQL11'
+    replica_user: replicauser
+    replica_pwd: replica_pwd
+    metrics_pwd: metrics_pwd
+
+eric-ran-log-service:
+  eric-log-transformer:
+    searchengine:
+      logplaneConfig: [ ]
+    egress:
+      syslog:
+        certificates:
+          asymmetricKeyCertificateName: log-syslog-client
+          trustedCertificateListName: log-syslog-client
+    probes:
+      logshipper:
+        livenessProbe:
+          initialDelaySeconds: 400
+    metrics:
+      enabled: true
+    config:
+      filter: |
+        ruby {
+          init => "
+            require 'json'
+            require 'time'
+          "
+          code => "
+              def get_code(type, **args)
+                facilities_hash={
+                  0 =>  ['kernel', 'kern'],
+                  1 =>  ['user-level', 'user-level messages', 'user'],
+                  2 =>  ['mail'],
+                  3 =>  ['daemon'],
+                  4 =>  ['auth', 'authpriv', 'security/authorization', 'security/authorization messages'],
+                  5 =>  ['syslogd', 'syslog'],
+                  6 =>  ['lpr', 'line printer'],
+                  7 =>  ['news', 'network news'],
+                  8 =>  ['uucp'],
+                  9 =>  ['cron', 'clock'],
+                  10 => ['security', 'security/authorization'],
+                  11 => ['ftp'],
+                  12 => ['ntp'],
+                  13 => ['logaudit', 'log audit', 'audit'],
+                  14 => ['logalert', 'log alert'],
+                  15 => ['clock'],
+                  16 => ['local0', 'local use 0'],
+                  17 => ['local1', 'local use 1'],
+                  18 => ['local2', 'local use 2'],
+                  19 => ['local3', 'local use 3'],
+                  20 => ['local4', 'local use 4'],
+                  21 => ['local5', 'local use 5'],
+                  22 => ['local6', 'local use 6'],
+                  23 => ['local7', 'local use 7'],
+                }
+                severities_hash = {
+                  0 => ['emergency', 'emerg'],
+                  1 => ['alert'],
+                  2 => ['critical', 'crit'],
+                  3 => ['error', 'err'],
+                  4 => ['warning'],
+                  5 => ['notice'],
+                  6 => ['info', 'informational'],
+                  7 => ['debug']
+                }
+                if type == 'severity_code'
+                  code = severities_hash.select { |k,v| v.include? args[:severity] }.keys.first
+                  return code.nil? ? 8 : code
+                elsif type == 'facility_code'
+                  code= facilities_hash.select { |k,v| v.include? args[:facility] }.keys.first
+                  return code.nil? ? 24: code
+                end
+                return 0
+              end
+              def nested_hash_value(obj, key_path, default_value, parent_keys=[])
+                key = key_path.last
+                if obj.respond_to?(:key?) && obj.key?(key) && (parent_keys + [key]).join(' ').end_with?(key_path.join(' '))
+                  return obj[key]
+                elsif obj.respond_to?(:key?)
+                  r = nil
+                  obj.each_pair do |k, v|
+                    r=nested_hash_value(v, key_path, default_value, parent_keys + [k])
+                    if not r.nil? and not r == default_value then
+                      return r
+                    end
+                  end
+                end
+                return default_value
+              end
+              def mgsub(str_value, key_value_pairs=[].freeze)
+                regexp_fragments = key_value_pairs.collect { |k,v| k }
+                str_value.gsub(
+                  Regexp.union(*regexp_fragments)) do |match|
+                  key_value_pairs.detect{|k,v| k =~ match}[1]
+                end
+              end
+              ## starting our transformation logic
+              hash_event = event.to_hash
+              begin
+                begin
+                   message = event.get('message')
+                   message = JSON.parse(message)
+                   if message.is_a?(Hash)
+                      wrapped_log = true
+                   else
+                      wrapped_log = false
+                   end
+                rescue
+                   wrapped_log = false
+                end
+                service_id = ''
+                if wrapped_log
+                   service_id = nested_hash_value(message, ['service_id'], 'adp')
+                end
+                service_id = (service_id == 'adp' || service_id == '') ? nested_hash_value(hash_event, ['service_id'], 'adp') : service_id
+                severity = ''
+                if service_id.include? 'eric-cbrs-dc'
+                  severity = case
+                  when message.include?('DEBUG') || message.include?('TRACE')
+                    'debug'
+                  when message.include?('ERROR')
+                    'error'
+                  when message.include?('WARN')
+                    'warning'
+                  else
+                    'info'
+                  end
+                  severity = nested_hash_value(hash_event, ['log_severity'], severity)
+                  event.remove('log_severity')
+                else
+                   if wrapped_log
+                      severity = nested_hash_value(message,['severity'], 'stdout/stderr')
+                   end
+                   severity = ( severity == 'stdout/stderr' || severity == '' ) ? nested_hash_value(hash_event,['severity'], 'stdout/stderr') : severity
+                end
+                severity_code = severity == 'stdout/stderr' ? 8 : get_code('severity_code', {severity:severity})
+                facility = ''
+                if wrapped_log
+                   facility = nested_hash_value(message,['facility'], 'adp')
+                end
+                facility = ( facility == 'adp' || severity == '' ) ? nested_hash_value(hash_event,['facility'], 'adp') : facility
+                facility_code = facility == 'adp' ? 24 : get_code('facility_code', facility:facility)
+                if wrapped_log
+                   program = nested_hash_value(message,['program'], service_id)
+                end
+                program = ( program == service_id || program == '' ) ? nested_hash_value(hash_event,['program'], service_id) : program
+                tag = ''
+                if wrapped_log
+                   tag = nested_hash_value(message,['tag'], service_id)
+                end
+                tag = ( tag == service_id || tag == '' ) ? nested_hash_value(hash_event,['tag'], service_id) : tag
+                host = nil
+                [['kubernetes','pod','name'],['metadata', 'pod_name'],['kubernetes','node','name'],['metadata', 'node_name'],['host']].find do |key_path|
+                  if wrapped_log
+                     host = nested_hash_value(message, key_path, nil)
+                  end
+                  host = host == nil ? nested_hash_value(hash_event, key_path, nil) : host
+                end
+                pri = nested_hash_value(hash_event,['pri'],nil)
+                if not pri
+                  pri = facility_code*8 + severity_code
+                end
+                event.set('severity', severity)
+                event.set('severity_code', severity_code)
+                message_value = wrapped_log ? nested_hash_value(message, ['message'], message) : message
+                event.set('message', message_value)
+                event.set('program', program)
+                event.set('tag', tag)
+                event.set('facility', facility)
+                event.set('facility_code', facility_code)
+                if event.get('timestamp').nil?
+                  event.set('timestamp', event.get('@timestamp').time.strftime('%Y-%m-%d' + 'T' + '%H:%M:%S.%L%:z'))
+                elsif not(event.get('timestamp').is_a? String)
+                  event.set('timestamp', event.get('timestamp').time.strftime('%Y-%m-%d' + 'T' + '%H:%M:%S.%L%:z'))
+                end
+                event.set('timestamp',Time.parse(event.get('timestamp')).localtime.strftime('%Y-%m-%d' + 'T' + '%H:%M:%S.%L%:z'))
+                event.set('timestamp_notz', mgsub(event.get('timestamp'),[[/\+\d{2}:\d{2}|-\d{2}:\d{2}/, ''], [/\+\d{4}|-\d{4}/, '']]))
+                event.set('host', host)
+                event.set('pri', pri)
+                ## Filtering into correct indices
+                if 13 == facility_code
+                  ## Filtering audit logs
+                  event.set('logplane', 'cbrs_audit_logs_index')
+                elsif [4 , 10].include? facility_code
+                  ## Filtering security and authorization logs
+                  event.set('logplane', 'cbrs_security_logs_index')
+                elsif severity == 'debug'
+                  ## Filtering debug logs
+                  event.set('logplane', 'cbrs_debug_logs_index')
+                elsif 6 == severity_code
+                  if service_id.include? 'eric-cbrs-dc'
+                    ## Filtering DC info logs
+                    event.set('logplane','cbrs_info_dc_service_index')
+                  else
+                    ## Filtering all other info logs
+                    event.set('logplane', 'cbrs_info_logs_index')
+                  end
+                else
+                  ## Filtering all logs of level warn and above
+                  event.set('logplane', 'cbrs_warn_and_above_logs_index')
+                end
+                ## Removing extra unneeded values to reduce log/document size
+                %w[kubernetes json tags filename ecs metadata originator].each do |k|
+                  event.remove(k)
+                end
+              rescue Exception => e
+                ## this error log will log failed event and the error message , that will be available in logtransformer logs in logviewer
+                ## if the error arise in the pipeline before reaching our code block it will be logged as error in default logstash format
+                logger.error('Filter Error : ',  {'error' => e, 'event' =>  hash_event} )
+              end
+          "
+        }
+        date {
+          match => ["timestamp_notz", "yyyy-MM-dd HH:mm:ss.S", "yyyy-MM-dd'T'HH:mm:ss.S", "yyyy-MM-dd'T'HH:mm:ss.S", "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss.SSSSSS", "yyyy-MM-dd'T'HH:mm:ss.SSSZ"]
+          timezone => "UTC"
+          target => "@timestamp"
+        }
+        mutate {
+          remove_field => [ "timestamp_notz" ]
+        }
+
+  eric-data-search-engine:
+    curator:
+      host: eric-data-search-engine-curator
+    # ISM is not ready to be turned on until all BUR issues are fully resolved
+    # When ISM is turned on, curator chart should be removed and all the curator related configuration should be removed from this file
+    index_management:
+      enabled: false
+    probes:
+      logshipper:
+        livenessProbe:
+          initialDelaySeconds: 400
+    metrics:
+      enabled: true
+    autoSetRequiredWorkerNodeSysctl: true
+    brAgent:
+      enabled: true
+      # Since customAgent agent is set, the default SearchEngine brAgent
+      # deployment type will have replicas set to zero i.e. deployment exists
+      # but no Pods will be created. eric-enmsg-elasticsearch below will
+      # replace the agent.
+      customAgent: true
+    storage:
+      repository:
+        enabled: true
+    persistence:
+      data:
+        persistentVolumeClaim:
+          size: 54Gi
+      backup:
+        persistentVolumeClaim:
+          size: 54Gi
+      master:
+        persistentVolumeClaim:
+          size: 64Mi
+
+eric-data-search-engine-curator:
+  enabled: true
+  cronjob:
+    curator:
+      schedule: "0 1 * * *"
+  log:
+    logshipper:
+      level: error
+  probes:
+    logshipper:
+      livenessProbe:
+        initialDelaySeconds: 400
+  resources:
+    logshipper:
+      limits:
+        memory: 200Mi
+      requests:
+        memory: 100Mi
+  actions: |
+    1:
+      action: delete_indices
+      description: Remove cbrs audit logs older than 180 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_audit_logs_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 180
+    2:
+      action: delete_indices
+      description: Remove cbrs security logs after 180 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_security_logs_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 180
+    3:
+      action: delete_indices
+      description: Remove cbrs info level logs older than 7 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_info_logs_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 7
+    4:
+      action: delete_indices
+      description: Remove cbrs dc service info logs older than 7 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_info_dc_service_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 7
+    5:
+      action: delete_indices
+      description: Remove cbrs logs of level warn and above, older than 7 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_warn_and_above_logs_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 7
+    6:
+      action: delete_indices
+      description: Remove cbrs debug logs older than 7 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs_debug_logs_index-
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 7
+    7:
+      action: delete_indices
+      description: Remove all other logs (except cbrs logs) older than 2 days
+      options:
+        disable_action: false
+        ignore_empty_list: true
+      filters:
+      - filtertype: pattern
+        kind: prefix
+        value: cbrs
+        exclude: True
+      - filtertype: age
+        source: name
+        direction: older
+        timestring: '%Y.%m.%d'
+        unit: days
+        unit_count: 2
+
+eric-ran-db-service:
+  eric-data-kvdb-rs:
+    labels:
+      eric-log-transformer-access: "true"
+    logShipper:
+      logLevel: "info"
+
+eric-oss-ddc:
+  remotewriter:
+    enabled: true
+  labels:
+    eric-data-search-engine-access: "true"
+    eric-log-transformer-access: "true"
+  resources:
+    remotewriter:
+      requests:
+        cpu: "200m"
+        memory: "6Gi"
+      limits:
+        cpu: "250m"
+        memory: "6Gi"
+  persistentVolumeClaim:
+    size: 10Gi
+  clusterAccess: yes
+  autoUpload:
+    enabled: false
+    deltaInterval: 120
+    ddpid:
+    account:
+    password:
+  extraEnv:
+    - name: PROMETHEUS_URL
+      value: https://eric-pm-server:9089
+    - name: ELASTICSEARCH_URL
+      value: https://eric-data-search-engine-tls:9200
+    - name: ELASTICSEARCH_INDEX_TEMPLATE
+      value: cbrs_audit_logs_index-%Y.%m.%d,cbrs_security_logs_index-%Y.%m.%d,cbrs_info_logs_index-%Y.%m.%d,cbrs_warn_and_above_logs_index-%Y.%m.%d,cbrs_info_dc_service_index-%Y.%m.%d,cbrs_debug_logs_index-%Y.%m.%d
+    - name: ELASTICSEARCH_FIELDS
+      value: timestamp,program,severity,message,host
+
+eric-ran-br-service:
+  eric-ctrl-bro:
+    bro:
+      enableConfigurationManagement: false
+      appProductInfoConfigMap: product-version-configmap
+      productMatchType: EXACT_MATCH
+    security:
+      tls:
+        broToAgent:
+          enabled: true
+    service:
+      endpoints:
+        broToAgent:
+          tls:
+            enforced: required
+            verifyClientCertificate: optional
+        restActions:
+          tls:
+            enforced: required
+            verifyClientCertificate: optional
+    log:
+      outputs:
+        - tcp
+        - console
+        - stream
+
+eric-ctrl-brocli:
+  labels:
+    eric-log-transformer-access: "true"
+  probes:
+    logshipper:
+      livenessProbe:
+        initialDelaySeconds: 400
+  logshipper:
+    enabled: true
+
+eric-cnom-document-database-mg:
+  logging:
+    logshipper:
+      enabled: true
+
+eric-oss-ingress-controller-nx:
+  controller:
+    podLabels:
+      eric-log-transformer-access: "true"
+  global:
+    security:
+      tls:
+        enabled: true
+  ingressClassResource:
+    ingressClass: cbrs-ingress-nginx
+  nameOverride: cbrs-ingress-controller-nx
+
+eric-pm-alert-manager:
+  labels:
+    eric-log-transformer-access: "true"
+  enable: true
+  config:
+    route:
+      receiver: 'web.hook'
+      group_by: ['alertname','managedObjectInstance']
+      routes:
+        - receiver: 'web.hook'
+          group_wait: 30s
+          group_interval: 30s
+          repeat_interval: 1m
+    receivers:
+    - name: 'web.hook'
+      webhook_configs:
+      - url: 'http://eric-cbrs-dc:8081/cbsd-domain-coordinator-app/services/alarm/latency'
+
+eric-enmsg-elasticsearch:
+  nameOverride: "eric-data-search-engine-br-agent"
+  fullnameOverride: "eric-data-search-engine-br-agent"
+  seName: "eric-data-search-engine"
+  brAgent:
+    verifyClientCertificate: required
+    cleanRestore: true
+
+ericCbrsVersionConfigmap:
+  enabled: true
+  packageVersion: "DEFAULT_PACKAGE_VERSION"
+  rState: "DEFAULT_R_STATE"
+  sprintNumber: "DEFAULT_SPRINT_NUMBER"
+  productNumber: "CXF 101 0177"
+
+securityPolicy:
+  rolename: "restricted"

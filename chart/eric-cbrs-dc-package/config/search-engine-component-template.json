@@ -1,0 +1,69 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "timestamp" : {
+          "type" : "date",
+          "format" : "strict_date_optional_time||epoch_millis||yyyy-MM-dd HH:mm:ss,SSS||yyyy-MM-dd HH:mm:ss.SSS ZZ||yyyy-MM-dd HH:mm:ss.SSS ZZZZZ||yyyy-MM-dd HH:mm:ss"
+        },
+        "pri": {
+          "type": "long"
+        },
+        "facility_code": {
+          "type": "long"
+        },
+        "severity_code": {
+          "type": "long"
+        },
+        "facility": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "program": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "host": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "tag": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "message": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      }
+    }
+  }
+}

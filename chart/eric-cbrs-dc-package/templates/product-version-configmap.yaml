@@ -1,0 +1,13 @@
+{{ if index .Values "tags" "eric-cbrs-dc-common" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-version-configmap
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+    chart: {{ template "eric-cbrs-dc-package.chart" . }}
+    app.kubernetes.io/name: {{ template "eric-cbrs-dc-package.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name | quote }}
+  annotations:
+{{- include "eric-cbrs-dc-package.annotations" . |  nindent 4 }}
+{{- end }}
